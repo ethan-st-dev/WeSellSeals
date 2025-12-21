@@ -13,3 +13,12 @@ body {
     color-scheme: dark;
   }
 }
+
+:root {
+  --header-height: 4rem; /* 16 */
+}
+
+main {
+  /* ensure content starts below header when header is fixed in future */
+  min-height: calc(100vh - var(--header-height));
+}
