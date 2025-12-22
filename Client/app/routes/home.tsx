@@ -1,5 +1,6 @@
 import type { Route } from "./+types/home";
 import ProductCard from "../components/ProductCard";
+import { seals } from "../data/seals";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -7,14 +8,6 @@ export function meta({}: Route.MetaArgs) {
     { name: "description", content: "Browse 3D seal models" },
   ];
 }
-
-const mockProducts = Array.from({ length: 12 }).map((_, i) => ({
-  id: String(i + 1),
-  title: `Adorable Seal Model #${i + 1}`,
-  price: (9.99 + i).toFixed(2),
-  imageSrc: `https://picsum.photos/seed/seal-${i + 1}/600/400`,
-  imageAlt: `3D seal model ${i + 1}`,
-}));
 
 export default function Home() {
   return (
@@ -25,14 +18,14 @@ export default function Home() {
 
       <section aria-label="Product grid">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {mockProducts.map((p) => (
+          {seals.map((s) => (
             <ProductCard
-              key={p.id}
-              id={p.id}
-              title={p.title}
-              price={p.price}
-              imageSrc={p.imageSrc}
-              imageAlt={p.imageAlt}
+              key={s.id}
+              id={s.id}
+              title={s.title}
+              price={s.price}
+              imageSrc={s.image}
+              imageAlt={s.shortDescription}
             />
           ))}
         </div>

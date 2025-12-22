@@ -1,24 +1,64 @@
 import React from "react";
-import logoLight from "../welcome/logo-light.svg";
-import logoDark from "../welcome/logo-dark.svg";
+import { useCart } from "../context/CartContext";
 
 export default function Header() {
+  const { state } = useCart();
+
   return (
     <header className="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <a href="/" className="inline-flex items-center">
+          <a
+            href="/"
+            className="inline-flex items-center gap-3"
+            aria-label="WeSellSeals home"
+          >
+            {/* Use the provided seal image placed in public/seal-logo2.png */}
             <img
-              src={logoLight}
-              className="h-8 block dark:hidden"
-              alt="We Sell Seals logo"
+              src="/seal-logo2.png"
+              className="h-20 w-20 object-contain bg-transparent"
+              alt="WeSellSeals logo"
             />
-            <img
-              src={logoDark}
-              className="h-8 hidden dark:block"
-              alt="We Sell Seals logo (dark)"
-            />
-            <span className="sr-only">We Sell Seals</span>
+
+            {/* Replace the simple text with a compact SVG wordmark for a more professional, logo-like appearance. */}
+            <div className="flex flex-col leading-tight">
+              <span className="sr-only">WeSellSeals</span>
+
+              {/* Inline SVG wordmark - uses the same gradient as tailwind classes for consistency */}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 300 48"
+                className="h-6 sm:h-8 w-auto"
+                role="img"
+                aria-labelledby="wsLogoTitle wsLogoDesc"
+              >
+                <title id="wsLogoTitle">WeSellSeals</title>
+                <desc id="wsLogoDesc">WeSellSeals wordmark with gradient</desc>
+                <defs>
+                  <linearGradient id="wsGradient" x1="0%" x2="100%">
+                    <stop offset="0%" stopColor="#6366F1" />
+                    <stop offset="50%" stopColor="#8B5CF6" />
+                    <stop offset="100%" stopColor="#EC4899" />
+                  </linearGradient>
+                </defs>
+                {/* Use <text> so the text scales crisply */}
+                <text
+                  x="0"
+                  y="34"
+                  fontFamily="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial"
+                  fontWeight="800"
+                  fontSize="28"
+                  letterSpacing="-0.02em"
+                  fill="url(#wsGradient)"
+                >
+                  WeSellSeals
+                </text>
+              </svg>
+
+              <span className="text-xs text-gray-500 dark:text-gray-400 -mt-0.5">
+                Quality seals &amp; supplies
+              </span>
+            </div>
           </a>
         </div>
 
@@ -45,7 +85,7 @@ export default function Header() {
             </svg>
             <span className="sr-only">Cart</span>
             <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-semibold rounded-full h-5 w-5 flex items-center justify-center">
-              0
+              {state.totalItems}
             </span>
           </button>
         </div>
@@ -53,4 +93,3 @@ export default function Header() {
     </header>
   );
 }
-
