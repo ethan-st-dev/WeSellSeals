@@ -6,4 +6,5 @@ export default [
     index("routes/seals/index.tsx"),
     route(":id", "routes/seals/$id.tsx"),
   ]),
+  route("/cart", "routes/cart.tsx"),
 ] satisfies RouteConfig;

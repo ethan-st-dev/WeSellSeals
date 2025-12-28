@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router";
 import { useCart } from "../context/CartContext";
 
 export default function Header() {
@@ -63,8 +64,8 @@ export default function Header() {
         </div>
 
         <div className="flex items-center">
-          <button
-            type="button"
+          <Link
+            to="/cart"
             aria-label="Open cart"
             className="relative p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
           >
@@ -84,10 +85,12 @@ export default function Header() {
               />
             </svg>
             <span className="sr-only">Cart</span>
-            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-semibold rounded-full h-5 w-5 flex items-center justify-center">
-              {state.totalItems}
-            </span>
-          </button>
+            {state.totalItems > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-semibold rounded-full h-5 w-5 flex items-center justify-center">
+                {state.totalItems}
+              </span>
+            )}
+          </Link>
         </div>
       </div>
     </header>
