@@ -63,7 +63,19 @@ export default function Header() {
           </a>
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center gap-4">
+          <Link
+            to="/login"
+            className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+          >
+            Login
+          </Link>
+          <Link
+            to="/signup"
+            className="text-sm font-medium px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+          >
+            Sign Up
+          </Link>
           <Link
             to="/cart"
             aria-label="Open cart"

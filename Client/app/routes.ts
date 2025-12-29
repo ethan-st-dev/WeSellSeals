@@ -7,4 +7,6 @@ export default [
     route(":id", "routes/seals/$id.tsx"),
   ]),
   route("/cart", "routes/cart.tsx"),
+  route("/login", "routes/login.tsx"),
+  route("/signup", "routes/signup.tsx"),
 ] satisfies RouteConfig;
