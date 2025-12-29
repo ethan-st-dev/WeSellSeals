@@ -2,8 +2,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Server.Data;
 using Server.Models;
+using Stripe;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Stripe
+StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
 
 // Add services to the container.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -154,6 +158,141 @@ app.MapGet("/api/auth/user", async (HttpContext context, UserManager<Application
     
     return Results.Unauthorized();
 }).RequireAuthorization();
+
+// Stripe Payment Intent endpoint
+app.MapPost("/api/payments/create-payment-intent", async (
+    CheckoutRequest request,
+    HttpContext context,
+    UserManager<ApplicationUser> userManager,
+    ApplicationDbContext dbContext) =>
+{
+    try
+    {
+        if (context.User.Identity?.IsAuthenticated != true)
+        {
+            return Results.Unauthorized();
+        }
+        
+        var user = await userManager.GetUserAsync(context.User);
+        if (user == null)
+        {
+            return Results.Unauthorized();
+        }
+        
+        // Check if user already owns any of these seals
+        var sealIds = request.Items.Select(i => i.SealId).ToList();
+        var existingPurchases = await dbContext.Purchases
+            .Where(p => p.UserId == user.Id && sealIds.Contains(p.SealId))
+            .Select(p => p.SealId)
+            .ToListAsync();
+        
+        if (existingPurchases.Any())
+        {
+            return Results.BadRequest(new { 
+                success = false, 
+                message = "You already own one or more of these seals" 
+            });
+        }
+        
+        // Calculate total amount in cents
+        var totalAmount = (long)(request.Items.Sum(i => i.Price) * 100);
+        
+        // Create payment intent
+        var paymentIntentService = new PaymentIntentService();
+        var paymentIntent = await paymentIntentService.CreateAsync(new PaymentIntentCreateOptions
+        {
+            Amount = totalAmount,
+            Currency = "usd",
+            AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
+            {
+                Enabled = true,
+            },
+            Metadata = new Dictionary<string, string>
+            {
+                { "userId", user.Id },
+                { "sealIds", string.Join(",", sealIds) },
+                { "sealTitles", string.Join("|", request.Items.Select(i => i.Title)) },
+                { "sealPrices", string.Join(",", request.Items.Select(i => i.Price)) }
+            }
+        });
+        
+        return Results.Ok(new { 
+            clientSecret = paymentIntent.ClientSecret,
+            paymentIntentId = paymentIntent.Id
+        });
+    }
+    catch (StripeException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: 500,
+            title: "Stripe API Error"
+        );
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: 500,
+            title: "Payment Error"
+        );
+    }
+}).RequireAuthorization();
+
+// Webhook to handle successful payments
+app.MapPost("/api/payments/webhook", async (
+    HttpContext context,
+    ApplicationDbContext dbContext,
+    UserManager<ApplicationUser> userManager) =>
+{
+    var json = await new StreamReader(context.Request.Body).ReadToEndAsync();
+    
+    try
+    {
+        var stripeEvent = EventUtility.ConstructEvent(
+            json,
+            context.Request.Headers["Stripe-Signature"],
+            builder.Configuration["Stripe:WebhookSecret"] ?? ""
+        );
+        
+        if (stripeEvent.Type == "payment_intent.succeeded")
+        {
+            var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
+            
+            if (paymentIntent?.Metadata != null)
+            {
+                var userId = paymentIntent.Metadata["userId"];
+                var sealIds = paymentIntent.Metadata["sealIds"].Split(',');
+                var sealTitles = paymentIntent.Metadata["sealTitles"].Split('|');
+                var sealPrices = paymentIntent.Metadata["sealPrices"].Split(',')
+                    .Select(p => decimal.Parse(p))
+                    .ToArray();
+                
+                var purchases = new List<Server.Models.Purchase>();
+                for (int i = 0; i < sealIds.Length; i++)
+                {
+                    purchases.Add(new Server.Models.Purchase
+                    {
+                        UserId = userId,
+                        SealId = sealIds[i],
+                        SealTitle = sealTitles[i],
+                        Price = sealPrices[i],
+                        PurchasedAt = DateTime.UtcNow
+                    });
+                }
+                
+                dbContext.Purchases.AddRange(purchases);
+                await dbContext.SaveChangesAsync();
+            }
+        }
+        
+        return Results.Ok();
+    }
+    catch (StripeException)
+    {
+        return Results.BadRequest();
+    }
+});
 
 // Purchase/Checkout endpoints
 app.MapPost("/api/purchases/checkout", async (

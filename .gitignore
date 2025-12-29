@@ -1,6 +1,7 @@
 # .NET
 Server/bin/
 Server/obj/
+Server/appsettings.json
 *.db
 *.db-shm
 *.db-wal

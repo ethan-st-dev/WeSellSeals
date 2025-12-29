@@ -12,49 +12,13 @@ export default function Cart() {
   const { state, removeItem, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [error, setError] = useState("");
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (!user) {
-      // Redirect to login if not authenticated
-      navigate("/login?redirect=/cart");
+      navigate("/login?redirect=/checkout");
       return;
     }
-
-    setIsCheckingOut(true);
-    setError("");
-
-    try {
-      const response = await fetch("http://localhost:5159/api/purchases/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          items: state.items.map(item => ({
-            sealId: item.id,
-            title: item.title,
-            price: item.price,
-          })),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        clearCart();
-        navigate("/user");
-      } else {
-        setError(data.message || "Checkout failed. Please try again.");
-      }
-    } catch (err) {
-      setError("An error occurred. Please try again.");
-      console.error("Checkout error:", err);
-    } finally {
-      setIsCheckingOut(false);
-    }
+    navigate("/checkout");
   };
 
   if (state.items.length === 0) {
@@ -189,13 +153,6 @@ export default function Cart() {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
               Order Summary
             </h2>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-              </div>
-            )}
-
             <div className="space-y-3 mb-4">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600 dark:text-gray-400">
@@ -233,10 +190,9 @@ export default function Cart() {
             <button
               type="button"
               onClick={handleCheckout}
-              disabled={isCheckingOut}
-              className="w-full py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors font-semibold"
             >
-              {isCheckingOut ? "Processing..." : user ? "Complete Purchase" : "Continue to Login"}
+              {user ? "Proceed to Checkout" : "Continue to Login"}
             </button>
 
             <Link
