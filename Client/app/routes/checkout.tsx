@@ -147,7 +147,7 @@ export default function Checkout() {
               <Elements options={options} stripe={stripePromise}>
                 <CheckoutForm onSuccess={() => {
                   clearCart();
-                  navigate("/user");
+                  navigate("/user?success=true");
                 }} />
               </Elements>
             )}

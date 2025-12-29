@@ -24,7 +24,7 @@ export default function CheckoutForm({ onSuccess }: CheckoutFormProps) {
 
     setIsLoading(true);
 
-    const { error } = await stripe.confirmPayment({
+    const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
         return_url: `${window.location.origin}/payment-success`,
@@ -38,12 +38,34 @@ export default function CheckoutForm({ onSuccess }: CheckoutFormProps) {
       } else {
         setMessage("An unexpected error occurred.");
       }
-    } else {
-      // Payment succeeded
-      onSuccess();
-    }
+      setIsLoading(false);
+    } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+      // Payment succeeded - confirm with backend to record purchases
+      try {
+        const response = await fetch("http://localhost:5159/api/payments/confirm-payment", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            paymentIntentId: paymentIntent.id,
+          }),
+        });
 
-    setIsLoading(false);
+        if (response.ok) {
+          onSuccess();
+        } else {
+          setMessage("Payment succeeded but failed to record purchases. Please contact support.");
+          setIsLoading(false);
+        }
+      } catch (err) {
+        setMessage("Payment succeeded but failed to record purchases. Please contact support.");
+        setIsLoading(false);
+      }
+    } else {
+      setIsLoading(false);
+    }
   };
 
   return (

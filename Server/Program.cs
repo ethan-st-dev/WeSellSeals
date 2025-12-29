@@ -239,6 +239,95 @@ app.MapPost("/api/payments/create-payment-intent", async (
     }
 }).RequireAuthorization();
 
+// Confirm payment and record purchases
+app.MapPost("/api/payments/confirm-payment", async (
+    HttpContext context,
+    UserManager<ApplicationUser> userManager,
+    ApplicationDbContext dbContext) =>
+{
+    try
+    {
+        if (context.User.Identity?.IsAuthenticated != true)
+        {
+            return Results.Unauthorized();
+        }
+        
+        var user = await userManager.GetUserAsync(context.User);
+        if (user == null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var requestBody = await context.Request.ReadFromJsonAsync<ConfirmPaymentRequest>();
+        if (requestBody == null || string.IsNullOrEmpty(requestBody.PaymentIntentId))
+        {
+            return Results.BadRequest(new { message = "Payment intent ID is required" });
+        }
+
+        // Verify payment intent with Stripe
+        var paymentIntentService = new PaymentIntentService();
+        var paymentIntent = await paymentIntentService.GetAsync(requestBody.PaymentIntentId);
+
+        if (paymentIntent.Status != "succeeded")
+        {
+            return Results.BadRequest(new { message = "Payment has not succeeded" });
+        }
+
+        // Extract metadata and create purchases
+        var userId = paymentIntent.Metadata["userId"];
+        if (userId != user.Id)
+        {
+            return Results.Unauthorized();
+        }
+
+        var sealIds = paymentIntent.Metadata["sealIds"].Split(',');
+        var sealTitles = paymentIntent.Metadata["sealTitles"].Split('|');
+        var sealPrices = paymentIntent.Metadata["sealPrices"].Split(',')
+            .Select(p => decimal.Parse(p))
+            .ToArray();
+
+        // Check if purchases already exist
+        var existingPurchases = await dbContext.Purchases
+            .Where(p => p.UserId == user.Id && sealIds.Contains(p.SealId))
+            .Select(p => p.SealId)
+            .ToListAsync();
+
+        // Only add new purchases
+        var newSealIds = sealIds.Where(id => !existingPurchases.Contains(id)).ToList();
+        if (newSealIds.Any())
+        {
+            var purchases = new List<Server.Models.Purchase>();
+            for (int i = 0; i < sealIds.Length; i++)
+            {
+                if (newSealIds.Contains(sealIds[i]))
+                {
+                    purchases.Add(new Server.Models.Purchase
+                    {
+                        UserId = userId,
+                        SealId = sealIds[i],
+                        SealTitle = sealTitles[i],
+                        Price = sealPrices[i],
+                        PurchasedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            dbContext.Purchases.AddRange(purchases);
+            await dbContext.SaveChangesAsync();
+        }
+
+        return Results.Ok(new { success = true, message = "Payment confirmed and purchases recorded" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: 500,
+            title: "Payment Confirmation Error"
+        );
+    }
+}).RequireAuthorization();
+
 // Webhook to handle successful payments
 app.MapPost("/api/payments/webhook", async (
     HttpContext context,
@@ -375,6 +464,45 @@ app.MapGet("/api/purchases/my-seals", async (
         .ToListAsync();
     
     return Results.Ok(new { success = true, purchases });
+}).RequireAuthorization();
+
+app.MapGet("/api/purchases/download/{sealId}", async (
+    string sealId,
+    HttpContext context,
+    UserManager<ApplicationUser> userManager,
+    ApplicationDbContext dbContext) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var user = await userManager.GetUserAsync(context.User);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    // Verify user owns this seal
+    var purchase = await dbContext.Purchases
+        .FirstOrDefaultAsync(p => p.UserId == user.Id && p.SealId == sealId);
+    
+    if (purchase == null)
+    {
+        return Results.NotFound(new { message = "You do not own this seal" });
+    }
+    
+    // In production, you would serve the actual 3D model file from storage
+    // For now, return a placeholder GLB file
+    var placeholderContent = System.Text.Encoding.UTF8.GetBytes(
+        $"# {purchase.SealTitle} 3D Model\\n# Placeholder file - replace with actual GLB model"
+    );
+    
+    return Results.File(
+        placeholderContent,
+        contentType: "model/gltf-binary",
+        fileDownloadName: $"{purchase.SealTitle.Replace(" ", "-")}.glb"
+    );
 }).RequireAuthorization();
 
 app.MapGet("/api/purchases/owns/{sealId}", async (

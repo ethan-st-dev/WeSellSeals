@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { useState, useEffect } from "react";
 import type { Route } from "./+types/user";
@@ -20,10 +20,21 @@ interface Purchase {
 export default function User() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
+    // Check if redirected from successful purchase
+    if (searchParams.get('success') === 'true') {
+      setShowSuccess(true);
+      // Remove the success param from URL
+      setSearchParams({});
+      // Hide success message after 5 seconds
+      setTimeout(() => setShowSuccess(false), 5000);
+    }
+
     const fetchPurchases = async () => {
       try {
         const response = await fetch("http://localhost:5159/api/purchases/my-seals", {
@@ -46,17 +57,48 @@ export default function User() {
     if (user) {
       fetchPurchases();
     }
-  }, [user]);
+  }, [user, searchParams, setSearchParams]);
 
   const handleLogout = async () => {
     await logout();
     navigate("/");
   };
 
-  const handleDownload = (sealTitle: string, sealId: string) => {
-    // For now, we'll simulate a download
-    // In production, you'd fetch the actual 3D model file from your backend
-    alert(`Downloading ${sealTitle}... (This would download the actual 3D model file)`);
+  const handleDownload = async (sealTitle: string, sealId: string) => {
+    try {
+      // Create a blob with sample 3D model data (GLB format placeholder)
+      // In production, you'd fetch the actual file from your backend
+      const response = await fetch(`http://localhost:5159/api/purchases/download/${sealId}`, {
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${sealTitle.replace(/\s+/g, '-')}.glb`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        // Fallback: Create a sample file
+        const sampleData = `# ${sealTitle} 3D Model\n# This is a placeholder. Replace with actual GLB model file.`;
+        const blob = new Blob([sampleData], { type: 'model/gltf-binary' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${sealTitle.replace(/\s+/g, '-')}.glb`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download file. Please try again.');
+    }
   };
 
   if (!user) {
@@ -66,6 +108,33 @@ export default function User() {
 
   return (
     <div className="max-w-screen-lg mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {showSuccess && (
+        <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <svg
+              className="w-6 h-6 text-green-600 dark:text-green-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <h3 className="font-semibold text-green-800 dark:text-green-200">
+                Payment Successful!
+              </h3>
+              <p className="text-sm text-green-700 dark:text-green-300">
+                Your seals are now available for download below.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center">

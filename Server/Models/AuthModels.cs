@@ -36,3 +36,8 @@ public class CheckMultipleRequest
 {
     public List<string> SealIds { get; set; } = new();
 }
+
+public class ConfirmPaymentRequest
+{
+    public required string PaymentIntentId { get; set; }
+}
