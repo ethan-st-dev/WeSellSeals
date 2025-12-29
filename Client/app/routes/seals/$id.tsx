@@ -4,21 +4,11 @@ import { useParams } from "react-router";
 import { seals } from "../../data/seals";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
+import SealModel3D from "../../components/SealModel3D";
 
 export function meta({ params }: Route.MetaArgs) {
   const s = seals.find((x) => x.id === params.id);
   return [{ title: s ? `${s.title} — We Sell Seals` : "Seal not found" }];
-}
-
-function loadModelViewer() {
-  if (typeof window === "undefined") return;
-  if ((window as any).customElements?.get("model-viewer")) return;
-  if (document.getElementById("model-viewer-script")) return;
-  const script = document.createElement("script");
-  script.id = "model-viewer-script";
-  script.src = "https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js";
-  script.async = true;
-  document.head.appendChild(script);
 }
 
 export default function SealDetail() {
@@ -27,11 +17,8 @@ export default function SealDetail() {
   const { user } = useAuth();
   const [owns, setOwns] = useState(false);
   const [checkingOwnership, setCheckingOwnership] = useState(true);
+  const [activeView, setActiveView] = useState<'image' | '3d'>('image');
   const s = seals.find((x) => x.id === id);
-
-  useEffect(() => {
-    if (s?.modelUrl) loadModelViewer();
-  }, [s?.modelUrl]);
 
   useEffect(() => {
     const checkOwnership = async () => {
@@ -81,20 +68,62 @@ export default function SealDetail() {
   return (
     <main className="max-w-screen-md mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden flex items-center justify-center">
-          {s.modelUrl ? (
-            // @ts-ignore - model-viewer web component
-            <model-viewer
-              src={s.modelUrl}
-              alt={s.title}
-              camera-controls
-              enable-pan
-              ar
-              style={{ width: "100%", height: "420px" }}
-            />
-          ) : (
-            <img src={s.image} alt={s.title} className="w-full h-96 object-cover" />
-          )}
+        {/* Product Media Section */}
+        <div className="space-y-3">
+          {/* Main Display Area */}
+          <div className="w-full h-[420px] bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+            {activeView === 'image' ? (
+              <img 
+                src={s.image} 
+                alt={s.title} 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <SealModel3D title={s.title} />
+            )}
+          </div>
+
+          {/* Thumbnail Tabs */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveView('image')}
+              className={`flex-1 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                activeView === 'image'
+                  ? 'border-indigo-600 dark:border-indigo-400'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+              }`}
+            >
+              <img 
+                src={s.image} 
+                alt={`${s.title} preview`}
+                className="w-full h-full object-cover"
+              />
+            </button>
+            
+            <button
+              onClick={() => setActiveView('3d')}
+              className={`flex-1 h-20 rounded-lg overflow-hidden border-2 transition-all flex items-center justify-center bg-gray-200 dark:bg-gray-800 ${
+                activeView === '3d'
+                  ? 'border-indigo-600 dark:border-indigo-400'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+              }`}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-8 w-8 text-gray-600 dark:text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div>
