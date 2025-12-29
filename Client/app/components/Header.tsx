@@ -1,9 +1,11 @@
 import React from "react";
 import { Link } from "react-router";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function Header() {
   const { state } = useCart();
+  const { user, loading } = useAuth();
 
   return (
     <header className="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
@@ -64,18 +66,31 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-4">
-          <Link
-            to="/login"
-            className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-          >
-            Login
-          </Link>
-          <Link
-            to="/signup"
-            className="text-sm font-medium px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-          >
-            Sign Up
-          </Link>
+          {loading ? (
+            <div className="text-sm text-gray-500">Loading...</div>
+          ) : user ? (
+            <Link
+              to="/user"
+              className="text-sm font-medium px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md hover:from-indigo-700 hover:to-purple-700 transition"
+            >
+              {user.email}
+            </Link>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              >
+                Login
+              </Link>
+              <Link
+                to="/signup"
+                className="text-sm font-medium px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
           <Link
             to="/cart"
             aria-label="Open cart"

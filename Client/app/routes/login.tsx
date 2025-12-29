@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
+import { useAuth } from "../context/AuthContext";
 import type { Route } from "./+types/login";
 
 export function meta({}: Route.MetaArgs) {
@@ -11,6 +12,7 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -34,6 +36,7 @@ export default function Login() {
       if (response.ok) {
         const data = await response.json();
         console.log("Login successful:", data);
+        login(email);
         navigate("/");
       } else {
         setError("Invalid email or password");

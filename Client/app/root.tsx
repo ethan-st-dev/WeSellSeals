@@ -12,6 +12,7 @@ import "./app.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import { CartProvider } from "./context/CartContext";
+import { AuthProvider } from "./context/AuthContext";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -37,11 +38,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        <CartProvider>
-          <Header />
-          <main className="pt-16">{children}</main>
-          <Footer />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Header />
+            <main className="pt-16">{children}</main>
+            <Footer />
+          </CartProvider>
+        </AuthProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
