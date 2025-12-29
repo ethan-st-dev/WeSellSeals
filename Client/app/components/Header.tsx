@@ -59,7 +59,7 @@ export default function Header() {
               </svg>
 
               <span className="text-xs text-gray-500 dark:text-gray-400 -mt-0.5">
-                Quality seals &amp; supplies
+               3D Models &amp; More
               </span>
             </div>
           </a>
