@@ -4,7 +4,6 @@ export type CartItem = {
   id: string;
   title: string;
   price: number;
-  quantity: number;
   imageSrc?: string;
 };
 
@@ -19,15 +18,14 @@ const STORAGE_KEY = "wessellseals_cart_v1";
 const initialState: CartState = { items: [], totalItems: 0, totalPrice: 0 };
 
 function calcTotals(items: CartItem[]) {
-  const totalItems = items.reduce((s, it) => s + it.quantity, 0);
-  const totalPrice = items.reduce((s, it) => s + it.price * it.quantity, 0);
+  const totalItems = items.length;
+  const totalPrice = items.reduce((s, it) => s + it.price, 0);
   return { totalItems, totalPrice };
 }
 
 type Action =
-  | { type: "ADD"; payload: { item: Omit<CartItem, "quantity">; quantity?: number } }
+  | { type: "ADD"; payload: { item: CartItem } }
   | { type: "REMOVE"; payload: { id: string } }
-  | { type: "UPDATE"; payload: { id: string; quantity: number } }
   | { type: "CLEAR" }
   | { type: "SET"; payload: CartState };
 
@@ -36,27 +34,18 @@ function reducer(state: CartState, action: Action): CartState {
     case "SET":
       return action.payload;
     case "ADD": {
-      const { item, quantity = 1 } = action.payload;
+      const { item } = action.payload;
+      // Check if item already in cart (digital products can only be added once)
       const existing = state.items.find((i) => i.id === item.id);
-      let newItems: CartItem[];
       if (existing) {
-        newItems = state.items.map((i) => (i.id === item.id ? { ...i, quantity: i.quantity + quantity } : i));
-      } else {
-        newItems = [...state.items, { ...item, quantity } as CartItem];
+        return state; // Already in cart, don't add again
       }
+      const newItems = [...state.items, item];
       const totals = calcTotals(newItems);
       return { items: newItems, ...totals };
     }
     case "REMOVE": {
       const newItems = state.items.filter((i) => i.id !== action.payload.id);
-      const totals = calcTotals(newItems);
-      return { items: newItems, ...totals };
-    }
-    case "UPDATE": {
-      const { id, quantity } = action.payload;
-      const newItems = state.items
-        .map((i) => (i.id === id ? { ...i, quantity: Math.max(0, quantity) } : i))
-        .filter((i) => i.quantity > 0);
       const totals = calcTotals(newItems);
       return { items: newItems, ...totals };
     }
@@ -69,10 +58,10 @@ function reducer(state: CartState, action: Action): CartState {
 
 type CartContextValue = {
   state: CartState;
-  addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
+  addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
-  updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  isInCart: (id: string) => boolean;
 };
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
@@ -101,18 +90,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state]);
 
-  const addItem = (item: Omit<CartItem, "quantity">, quantity = 1) =>
-    dispatch({ type: "ADD", payload: { item, quantity } });
+  const addItem = (item: CartItem) =>
+    dispatch({ type: "ADD", payload: { item } });
 
   const removeItem = (id: string) => dispatch({ type: "REMOVE", payload: { id } });
 
-  const updateQuantity = (id: string, quantity: number) =>
-    dispatch({ type: "UPDATE", payload: { id, quantity } });
-
   const clearCart = () => dispatch({ type: "CLEAR" });
 
+  const isInCart = (id: string) => state.items.some((item) => item.id === id);
+
   return (
-    <CartContext.Provider value={{ state, addItem, removeItem, updateQuantity, clearCart }}>
+    <CartContext.Provider value={{ state, addItem, removeItem, clearCart, isInCart }}>
       {children}
     </CartContext.Provider>
   );

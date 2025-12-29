@@ -19,3 +19,15 @@ public class AuthResponse
     public string Message { get; set; } = string.Empty;
     public string? Email { get; set; }
 }
+
+public class CheckoutRequest
+{
+    public List<CheckoutItem> Items { get; set; } = new();
+}
+
+public class CheckoutItem
+{
+    public required string SealId { get; set; }
+    public required string Title { get; set; }
+    public decimal Price { get; set; }
+}

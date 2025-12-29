@@ -155,6 +155,112 @@ app.MapGet("/api/auth/user", async (HttpContext context, UserManager<Application
     return Results.Unauthorized();
 }).RequireAuthorization();
 
+// Purchase/Checkout endpoints
+app.MapPost("/api/purchases/checkout", async (
+    CheckoutRequest request, 
+    HttpContext context, 
+    UserManager<ApplicationUser> userManager,
+    ApplicationDbContext dbContext) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var user = await userManager.GetUserAsync(context.User);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    // Check if user already owns any of these seals
+    var sealIds = request.Items.Select(i => i.SealId).ToList();
+    var existingPurchases = await dbContext.Purchases
+        .Where(p => p.UserId == user.Id && sealIds.Contains(p.SealId))
+        .Select(p => p.SealId)
+        .ToListAsync();
+    
+    if (existingPurchases.Any())
+    {
+        return Results.BadRequest(new { 
+            success = false, 
+            message = "You already own one or more of these seals" 
+        });
+    }
+    
+    // Create purchases
+    var purchases = request.Items.Select(item => new Purchase
+    {
+        UserId = user.Id,
+        SealId = item.SealId,
+        SealTitle = item.Title,
+        Price = item.Price,
+        PurchasedAt = DateTime.UtcNow
+    }).ToList();
+    
+    dbContext.Purchases.AddRange(purchases);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Ok(new { 
+        success = true, 
+        message = "Purchase successful",
+        purchasedIds = purchases.Select(p => p.SealId).ToList()
+    });
+}).RequireAuthorization();
+
+app.MapGet("/api/purchases/my-seals", async (
+    HttpContext context,
+    UserManager<ApplicationUser> userManager,
+    ApplicationDbContext dbContext) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var user = await userManager.GetUserAsync(context.User);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var purchases = await dbContext.Purchases
+        .Where(p => p.UserId == user.Id)
+        .OrderByDescending(p => p.PurchasedAt)
+        .Select(p => new {
+            p.SealId,
+            p.SealTitle,
+            p.Price,
+            p.PurchasedAt
+        })
+        .ToListAsync();
+    
+    return Results.Ok(new { success = true, purchases });
+}).RequireAuthorization();
+
+app.MapGet("/api/purchases/owns/{sealId}", async (
+    string sealId,
+    HttpContext context,
+    UserManager<ApplicationUser> userManager,
+    ApplicationDbContext dbContext) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Ok(new { owns = false });
+    }
+    
+    var user = await userManager.GetUserAsync(context.User);
+    if (user == null)
+    {
+        return Results.Ok(new { owns = false });
+    }
+    
+    var owns = await dbContext.Purchases
+        .AnyAsync(p => p.UserId == user.Id && p.SealId == sealId);
+    
+    return Results.Ok(new { owns });
+});
+
 var summaries = new[]
 {
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"

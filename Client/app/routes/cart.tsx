@@ -1,20 +1,59 @@
 import type { Route } from "./+types/cart";
-import React from "react";
-import { Link } from "react-router";
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: "Shopping Cart — We Sell Seals" }];
 }
 
 export default function Cart() {
-  const { state, removeItem, updateQuantity, clearCart } = useCart();
+  const { state, removeItem, clearCart } = useCart();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleQuantityChange = (id: string, newQuantity: number) => {
-    if (newQuantity < 1) {
-      removeItem(id);
-    } else {
-      updateQuantity(id, newQuantity);
+  const handleCheckout = async () => {
+    if (!user) {
+      // Redirect to login if not authenticated
+      navigate("/login?redirect=/cart");
+      return;
+    }
+
+    setIsCheckingOut(true);
+    setError("");
+
+    try {
+      const response = await fetch("http://localhost:5159/api/purchases/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          items: state.items.map(item => ({
+            sealId: item.id,
+            title: item.title,
+            price: item.price,
+          })),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        clearCart();
+        navigate("/user");
+      } else {
+        setError(data.message || "Checkout failed. Please try again.");
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again.");
+      console.error("Checkout error:", err);
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -106,7 +145,7 @@ export default function Cart() {
                         </Link>
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        ${item.price.toFixed(2)} each
+                        Digital Download
                       </p>
                     </div>
                     <button
@@ -130,61 +169,12 @@ export default function Cart() {
                     </button>
                   </div>
 
-                  {/* Quantity Controls */}
-                  <div className="flex items-center gap-3 mt-3">
-                    <label htmlFor={`quantity-${item.id}`} className="text-sm text-gray-600 dark:text-gray-400">
-                      Quantity:
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                        className="w-8 h-8 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center"
-                        aria-label="Decrease quantity"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                      <input
-                        type="number"
-                        id={`quantity-${item.id}`}
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
-                        className="w-16 text-center border border-gray-300 dark:border-gray-600 rounded-md py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                        className="w-8 h-8 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center"
-                        aria-label="Increase quantity"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                    <span className="ml-auto font-semibold text-gray-900 dark:text-gray-100">
-                      ${(item.price * item.quantity).toFixed(2)}
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      One-time purchase
+                    </span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      ${item.price.toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -200,25 +190,25 @@ export default function Cart() {
               Order Summary
             </h2>
 
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
+
             <div className="space-y-3 mb-4">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                <span className="text-gray-600 dark:text-gray-400">
+                  {state.totalItems} {state.totalItems === 1 ? 'Seal' : 'Seals'}
+                </span>
                 <span className="text-gray-900 dark:text-gray-100">
                   ${state.totalPrice.toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">
-                  Items ({state.totalItems})
-                </span>
-                <span className="text-gray-900 dark:text-gray-100">
-                  {state.totalItems} {state.totalItems === 1 ? 'item' : 'items'}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Shipping</span>
-                <span className="text-gray-900 dark:text-gray-100">
-                  {state.totalPrice > 50 ? 'FREE' : '$5.99'}
+                <span className="text-gray-600 dark:text-gray-400">Instant Download</span>
+                <span className="text-green-600 dark:text-green-400 font-medium">
+                  FREE
                 </span>
               </div>
             </div>
@@ -227,16 +217,26 @@ export default function Cart() {
               <div className="flex justify-between">
                 <span className="font-semibold text-gray-900 dark:text-gray-100">Total</span>
                 <span className="font-semibold text-xl text-indigo-600 dark:text-indigo-400">
-                  ${(state.totalPrice + (state.totalPrice > 50 ? 0 : 5.99)).toFixed(2)}
+                  ${state.totalPrice.toFixed(2)}
                 </span>
               </div>
             </div>
 
+            {!user && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  You'll need to log in or create an account to complete your purchase.
+                </p>
+              </div>
+            )}
+
             <button
               type="button"
-              className="w-full py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors font-semibold"
+              onClick={handleCheckout}
+              disabled={isCheckingOut}
+              className="w-full py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Proceed to Checkout
+              {isCheckingOut ? "Processing..." : user ? "Complete Purchase" : "Continue to Login"}
             </button>
 
             <Link
@@ -245,12 +245,6 @@ export default function Cart() {
             >
               Continue Shopping
             </Link>
-
-            {state.totalPrice < 50 && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-4">
-                Add ${(50 - state.totalPrice).toFixed(2)} more for free shipping!
-              </p>
-            )}
           </div>
         </div>
       </div>

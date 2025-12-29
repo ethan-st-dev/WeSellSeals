@@ -10,4 +10,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         : base(options)
     {
     }
+    
+    public DbSet<Purchase> Purchases { get; set; }
+    
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        
+        modelBuilder.Entity<Purchase>()
+            .HasOne(p => p.User)
+            .WithMany()
+            .HasForeignKey(p => p.UserId);
+            
+        modelBuilder.Entity<Purchase>()
+            .Property(p => p.Price)
+            .HasPrecision(18, 2);
+    }
 }

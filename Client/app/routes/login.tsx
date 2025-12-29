@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import type { Route } from "./+types/login";
 
@@ -13,10 +13,13 @@ export function meta({}: Route.MetaArgs) {
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const redirectPath = searchParams.get("redirect") || "/";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +40,7 @@ export default function Login() {
         const data = await response.json();
         console.log("Login successful:", data);
         login(email);
-        navigate("/");
+        navigate(redirectPath);
       } else {
         setError("Invalid email or password");
       }
