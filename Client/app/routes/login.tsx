@@ -39,7 +39,7 @@ export default function Login() {
       if (response.ok) {
         const data = await response.json();
         console.log("Login successful:", data);
-        login(email);
+        await login(email);
         navigate(redirectPath);
       } else {
         setError("Invalid email or password");

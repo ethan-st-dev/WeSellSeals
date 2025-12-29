@@ -60,6 +60,7 @@ type CartContextValue = {
   state: CartState;
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
+  //removeMultipleItems: (ids: string[]) => void;
   clearCart: () => void;
   isInCart: (id: string) => boolean;
 };
@@ -90,17 +91,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state]);
 
+  // Listen for external cart updates (e.g., from auth context cleaning owned items)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as CartState;
+          dispatch({ type: "SET", payload: parsed });
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const addItem = (item: CartItem) =>
     dispatch({ type: "ADD", payload: { item } });
 
   const removeItem = (id: string) => dispatch({ type: "REMOVE", payload: { id } });
+
+ /* const removeMultipleItems = (ids: string[]) => {
+    ids.forEach(id => dispatch({ type: "REMOVE", payload: { id } }));
+  };*/
 
   const clearCart = () => dispatch({ type: "CLEAR" });
 
   const isInCart = (id: string) => state.items.some((item) => item.id === id);
 
   return (
-    <CartContext.Provider value={{ state, addItem, removeItem, clearCart, isInCart }}>
+    <CartContext.Provider value={{ state, addItem, removeItem, /*removeMultipleItems,*/ clearCart, isInCart }}>
       {children}
     </CartContext.Provider>
   );

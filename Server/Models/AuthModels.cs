@@ -31,3 +31,8 @@ public class CheckoutItem
     public required string Title { get; set; }
     public decimal Price { get; set; }
 }
+
+public class CheckMultipleRequest
+{
+    public List<string> SealIds { get; set; } = new();
+}

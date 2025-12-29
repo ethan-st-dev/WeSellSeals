@@ -261,6 +261,31 @@ app.MapGet("/api/purchases/owns/{sealId}", async (
     return Results.Ok(new { owns });
 });
 
+app.MapPost("/api/purchases/check-multiple", async (
+    CheckMultipleRequest request,
+    HttpContext context,
+    UserManager<ApplicationUser> userManager,
+    ApplicationDbContext dbContext) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Ok(new { ownedSealIds = new List<string>() });
+    }
+    
+    var user = await userManager.GetUserAsync(context.User);
+    if (user == null)
+    {
+        return Results.Ok(new { ownedSealIds = new List<string>() });
+    }
+    
+    var ownedSealIds = await dbContext.Purchases
+        .Where(p => p.UserId == user.Id && request.SealIds.Contains(p.SealId))
+        .Select(p => p.SealId)
+        .ToListAsync();
+    
+    return Results.Ok(new { ownedSealIds });
+});
+
 var summaries = new[]
 {
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
