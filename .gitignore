@@ -1,0 +1,39 @@
+# .NET
+Server/bin/
+Server/obj/
+*.db
+*.db-shm
+*.db-wal
+
+# Rider
+.idea/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Node
+Client/node_modules/
+Client/dist/
+Client/.react-router/
+Client/build/
+
+# Environment
+*.env
+*.env.local
