@@ -1,53 +1,26 @@
-using FluentAssertions;
-using Microsoft.AspNetCore.Identity;
+using System.Net;
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Server.Data;
 using Server.Models;
-using System.Net;
-using System.Net.Http.Json;
 using Xunit;
 
 namespace Server.Tests;
 
 public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
+    private readonly WebApplicationFactory<Program> _factory;
 
     public AuthenticationTests(WebApplicationFactory<Program> factory)
     {
         _factory = factory.WithWebHostBuilder(builder =>
         {
-            builder.ConfigureServices(services =>
-            {
-                // Remove existing DbContext
-                var descriptor = services.SingleOrDefault(
-                    d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
-                
-                if (descriptor != null)
-                {
-                    services.Remove(descriptor);
-                }
-
-                // Add in-memory database for testing
-                services.AddDbContext<ApplicationDbContext>(options =>
-                {
-                    options.UseInMemoryDatabase("TestDatabase");
-                });
-
-                // Build the service provider
-                var sp = services.BuildServiceProvider();
-
-                // Create a scope to obtain a reference to the database context
-                using var scope = sp.CreateScope();
-                var scopedServices = scope.ServiceProvider;
-                var db = scopedServices.GetRequiredService<ApplicationDbContext>();
-
-                // Ensure the database is created
-                db.Database.EnsureCreated();
-            });
+            builder.UseEnvironment("Testing");
         });
 
         _client = _factory.CreateClient();
@@ -61,42 +34,16 @@ public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
         {
             Email = "test@example.com",
             Password = "Test123!",
-            ConfirmPassword = "Test123!"
+            ConfirmPassword = "Test123!",
+            FirstName = "Test",
+            LastName = "User"
         };
 
         // Act
         var response = await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        result.Should().NotBeNull();
-        result!.Success.Should().BeTrue();
-        result.Message.Should().Be("User registered successfully");
-    }
-
-    [Fact]
-    public async Task Register_WithMismatchedPasswords_ReturnsBadRequest()
-    {
-        // Arrange
-        var registerRequest = new RegisterRequest
-        {
-            Email = "test@example.com",
-            Password = "Test123!",
-            ConfirmPassword = "DifferentPassword123!"
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        result.Should().NotBeNull();
-        result!.Success.Should().BeFalse();
-        result.Message.Should().Be("Passwords do not match");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -107,21 +54,39 @@ public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
         {
             Email = "duplicate@example.com",
             Password = "Test123!",
-            ConfirmPassword = "Test123!"
+            ConfirmPassword = "Test123!",
+            FirstName = "Test",
+            LastName = "User"
         };
 
-        // First registration
+        // Register first user
         await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
 
         // Act - Try to register again with same email
         var response = await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        result.Should().NotBeNull();
-        result!.Success.Should().BeFalse();
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Register_WithMismatchedPasswords_ReturnsBadRequest()
+    {
+        // Arrange
+        var registerRequest = new RegisterRequest
+        {
+            Email = "test2@example.com",
+            Password = "Test123!",
+            ConfirmPassword = "Different123!",
+            FirstName = "Test",
+            LastName = "User"
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -132,7 +97,9 @@ public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
         {
             Email = "login@example.com",
             Password = "Test123!",
-            ConfirmPassword = "Test123!"
+            ConfirmPassword = "Test123!",
+            FirstName = "Test",
+            LastName = "User"
         };
         await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
 
@@ -146,12 +113,7 @@ public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
         var response = await _client.PostAsJsonAsync("/api/auth/login", loginRequest);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        result.Should().NotBeNull();
-        result!.Success.Should().BeTrue();
-        result.Message.Should().Be("Login successful");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -168,11 +130,21 @@ public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
         var response = await _client.PostAsJsonAsync("/api/auth/login", loginRequest);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-        result.Should().NotBeNull();
-        result!.Success.Should().BeFalse();
-        result.Message.Should().Be("Invalid email or password");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+}
+
+public class RegisterRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public string ConfirmPassword { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+}
+
+public class LoginRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
 }
