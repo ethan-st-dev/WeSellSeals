@@ -28,9 +28,10 @@ vi.mock('@stripe/react-stripe-js', async () => {
 });
 
 describe('CheckoutForm', () => {
-  const mockOnSuccess = vi.fn();
+  let mockOnSuccess: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    mockOnSuccess = vi.fn();
     vi.clearAllMocks();
   });
 
