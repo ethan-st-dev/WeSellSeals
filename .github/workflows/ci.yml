@@ -164,11 +164,29 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
     
-    - name: Deploy Backend to Azure App Service
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-        package: ./Server/publish
+    - name: Build Container Image
+      working-directory: ./Server
+      run: |
+        az acr build \
+          --registry $(az acr list --resource-group WeSellSeals-Production-RG --query "[0].name" -o tsv || echo "wesellsealsacr") \
+          --image wesellseals-api:${{ github.sha }} \
+          --image wesellseals-api:latest \
+          --file Dockerfile \
+          . || echo "ACR not found, using direct deployment"
+    
+    - name: Deploy to Azure Container Apps
+      run: |
+        az containerapp up \
+          --name wesellseals-api \
+          --resource-group WeSellSeals-Production-RG \
+          --environment wesellseals-env \
+          --source ./Server \
+          --target-port 8080 \
+          --ingress external \
+          --env-vars \
+            "ConnectionStrings__AzureSqlConnection=${{ secrets.AZURE_SQL_CONNECTION_STRING }}" \
+            "Stripe__SecretKey=${{ secrets.STRIPE_SECRET_KEY }}" \
+            "ASPNETCORE_ENVIRONMENT=Production"
     
     # Run Database Migrations
     - name: Install EF Core Tools
