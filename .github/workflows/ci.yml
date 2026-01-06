@@ -164,16 +164,16 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
     
-    - name: Build and Push to Azure Container Registry
+    - name: Login to Azure Container Registry
       run: |
-        az acr build \
-          --registry wesellsealsacr \
-          --resource-group WeSellSeals-Production-RG \
-          --image wesellseals-api:${{ github.sha }} \
-          --image wesellseals-api:latest \
-          --file Dockerfile \
-          .
+        az acr login --name wesellsealsacr
+    
+    - name: Build and Push Docker Image
       working-directory: ./Server
+      run: |
+        docker build -t wesellsealsacr.azurecr.io/wesellseals-api:${{ github.sha }} -t wesellsealsacr.azurecr.io/wesellseals-api:latest -f Dockerfile .
+        docker push wesellsealsacr.azurecr.io/wesellseals-api:${{ github.sha }}
+        docker push wesellsealsacr.azurecr.io/wesellseals-api:latest
     
     - name: Deploy to Azure Container Apps
       run: |
