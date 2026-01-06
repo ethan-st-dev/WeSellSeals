@@ -217,6 +217,7 @@ jobs:
         action: "upload"
         app_location: "./Client/build/client"
         skip_app_build: true
+        output_location: ""
     
     - name: Logout from Azure
       run: az logout
