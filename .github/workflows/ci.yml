@@ -192,9 +192,10 @@ jobs:
     
     - name: Run Database Migrations
       run: |
-        dotnet ef database update --project ./Server --connection "${{ secrets.AZURE_SQL_CONNECTION_STRING }}"
+        dotnet ef database update --project ./Server
       env:
         ASPNETCORE_ENVIRONMENT: Production
+        AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
     
     # Build and Deploy Frontend
     - name: Install Frontend Dependencies
