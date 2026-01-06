@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect } from 'react';
-import { useUser, useClerk } from '@clerk/clerk-react';
+import { useUser, useClerk, useSession } from '@clerk/clerk-react';
 
 interface User {
   email: string;
@@ -27,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user: clerkUser, isLoaded } = useUser();
   const { signOut } = useClerk();
+  const { session } = useSession();
 
   useEffect(() => {
     if (isLoaded && clerkUser) {
@@ -42,17 +43,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     await signOut();
   };
-
   const getToken = async (): Promise<string | null> => {
-    if (!clerkUser) return null;
+    if (!session) return null;
     try {
       // Get the session token from Clerk
-      const token = await (clerkUser as any).getToken?.();
-      return token || null;
+      const token = await session.getToken();
+      return token;
     } catch (error) {
       console.error('Error getting token:', error);
       return null;
     }
+  };}
   };
 
   const cleanCartOfOwnedSeals = async () => {
@@ -66,13 +67,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const sealIds = cart.items.map((item: any) => item.id);
       
+      // Get auth token
+      const token = await getToken();
+      if (!token) return;
+      
       // Check which seals the user already owns
-      const response = await fetch('http://localhost:5159/api/purchases/check-multiple', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5159';
+      const response = await fetch(`${apiUrl}/api/purchases/check-multiple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        credentials: 'include',
         body: JSON.stringify({ sealIds }),
       });
       

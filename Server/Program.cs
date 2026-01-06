@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Server.Data;
 using Server.Models;
 using Stripe;
@@ -36,28 +38,23 @@ else
         options.UseSqlite(connectionString));
 }
 
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
-{
-    // Password settings
-    options.Password.RequireDigit = true;
-    options.Password.RequireLowercase = true;
-    options.Password.RequireUppercase = true;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequiredLength = 6;
-    
-    // User settings
-    options.User.RequireUniqueEmail = true;
-})
-.AddEntityFrameworkStores<ApplicationDbContext>()
-.AddDefaultTokenProviders();
+// Configure Clerk JWT Authentication
+var clerkDomain = builder.Configuration["Clerk:Domain"] ?? "fluent-wahoo-53.clerk.accounts.dev";
+var clerkAuthority = $"https://{clerkDomain}";
 
-builder.Services.ConfigureApplicationCookie(options =>
-{
-    options.Cookie.HttpOnly = true;
-    options.ExpireTimeSpan = TimeSpan.FromDays(7);
-    options.SlidingExpiration = true;
-    options.Cookie.SameSite = SameSiteMode.Lax;
-});
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = clerkAuthority;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = clerkAuthority,
+            ValidateAudience = false, // Clerk doesn't use audience by default
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true
+        };
+    });
 
 builder.Services.AddCors(options =>
 {
@@ -100,87 +97,76 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Authentication endpoints
-app.MapPost("/api/auth/register", async (RegisterRequest request, UserManager<ApplicationUser> userManager) =>
+// Helper method to get or create user from Clerk token
+static async Task<ApplicationUser?> GetOrCreateUserFromClerk(HttpContext context, ApplicationDbContext dbContext)
 {
-    if (request.Password != request.ConfirmPassword)
+    if (context.User.Identity?.IsAuthenticated != true)
     {
-        return Results.BadRequest(new AuthResponse 
-        { 
-            Success = false, 
-            Message = "Passwords do not match" 
-        });
+        return null;
     }
 
-    var user = new ApplicationUser 
-    { 
-        UserName = request.Email, 
-        Email = request.Email 
-    };
-
-    var result = await userManager.CreateAsync(user, request.Password);
-
-    if (result.Succeeded)
+    // Get Clerk user ID from the JWT token (sub claim)
+    var clerkUserId = context.User.FindFirst("sub")?.Value 
+                   ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    
+    if (string.IsNullOrEmpty(clerkUserId))
     {
-        return Results.Ok(new AuthResponse 
-        { 
-            Success = true, 
-            Message = "Registration successful",
-            Email = user.Email
-        });
+        return null;
     }
 
-    return Results.BadRequest(new AuthResponse 
-    { 
-        Success = false, 
-        Message = string.Join(", ", result.Errors.Select(e => e.Description))
-    });
-});
-
-app.MapPost("/api/auth/login", async (LoginRequest request, SignInManager<ApplicationUser> signInManager) =>
-{
-    var result = await signInManager.PasswordSignInAsync(
-        request.Email, 
-        request.Password, 
-        isPersistent: true, 
-        lockoutOnFailure: false);
-
-    if (result.Succeeded)
+    // Check if user exists in our database
+    var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == clerkUserId);
+    
+    if (user == null)
     {
-        return Results.Ok(new AuthResponse 
-        { 
-            Success = true, 
-            Message = "Login successful",
-            Email = request.Email
-        });
-    }
-
-    return Results.Unauthorized();
-});
-
-app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signInManager) =>
-{
-    await signInManager.SignOutAsync();
-    return Results.Ok(new AuthResponse 
-    { 
-        Success = true, 
-        Message = "Logout successful" 
-    });
-});
-
-app.MapGet("/api/auth/user", async (HttpContext context, UserManager<ApplicationUser> userManager) =>
-{
-    if (context.User.Identity?.IsAuthenticated == true)
-    {
-        var user = await userManager.GetUserAsync(context.User);
-        if (user != null)
+        // Create new user record with Clerk ID
+        var email = context.User.FindFirst("email")?.Value 
+                 ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        
+        user = new ApplicationUser
         {
-            return Results.Ok(new AuthResponse 
-            { 
-                Success = true, 
-                Email = user.Email 
-            });
-        }
+            Id = clerkUserId,
+            UserName = email ?? clerkUserId,
+            Email = email,
+            EmailConfirmed = true // Clerk handles email verification
+        };
+        
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync();
+    }
+    
+    return user;
+}
+
+// Authentication endpoints (now handled by Clerk on the frontend)
+// These are kept for backwards compatibility but can be removed
+// Authentication endpoints (now handled by Clerk on the frontend)
+// These are kept for backwards compatibility but can be removed
+app.MapPost("/api/auth/register", () => 
+{
+    return Results.Ok(new { message = "Registration is now handled by Clerk. Please use the /signup page." });
+});
+
+app.MapPost("/api/auth/login", () =>
+{
+    return Results.Ok(new { message = "Login is now handled by Clerk. Please use the /login page." });
+});
+
+app.MapPost("/api/auth/logout", () =>
+{
+    return Results.Ok(new { message = "Logout is now handled by Clerk on the frontend." });
+});
+
+app.MapGet("/api/auth/user", async (HttpContext context, ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user != null)
+    {
+        return Results.Ok(new AuthResponse 
+        { 
+            Success = true, 
+            Email = user.Email 
+        });
     }
     
     return Results.Unauthorized();
@@ -190,17 +176,11 @@ app.MapGet("/api/auth/user", async (HttpContext context, UserManager<Application
 app.MapPost("/api/payments/create-payment-intent", async (
     CheckoutRequest request,
     HttpContext context,
-    UserManager<ApplicationUser> userManager,
     ApplicationDbContext dbContext) =>
 {
     try
     {
-        if (context.User.Identity?.IsAuthenticated != true)
-        {
-            return Results.Unauthorized();
-        }
-        
-        var user = await userManager.GetUserAsync(context.User);
+        var user = await GetOrCreateUserFromClerk(context, dbContext);
         if (user == null)
         {
             return Results.Unauthorized();
@@ -269,17 +249,11 @@ app.MapPost("/api/payments/create-payment-intent", async (
 // Confirm payment and record purchases
 app.MapPost("/api/payments/confirm-payment", async (
     HttpContext context,
-    UserManager<ApplicationUser> userManager,
     ApplicationDbContext dbContext) =>
 {
     try
     {
-        if (context.User.Identity?.IsAuthenticated != true)
-        {
-            return Results.Unauthorized();
-        }
-        
-        var user = await userManager.GetUserAsync(context.User);
+        var user = await GetOrCreateUserFromClerk(context, dbContext);
         if (user == null)
         {
             return Results.Unauthorized();
@@ -358,8 +332,7 @@ app.MapPost("/api/payments/confirm-payment", async (
 // Webhook to handle successful payments
 app.MapPost("/api/payments/webhook", async (
     HttpContext context,
-    ApplicationDbContext dbContext,
-    UserManager<ApplicationUser> userManager) =>
+    ApplicationDbContext dbContext) =>
 {
     var json = await new StreamReader(context.Request.Body).ReadToEndAsync();
     
@@ -414,15 +387,9 @@ app.MapPost("/api/payments/webhook", async (
 app.MapPost("/api/purchases/checkout", async (
     CheckoutRequest request, 
     HttpContext context, 
-    UserManager<ApplicationUser> userManager,
     ApplicationDbContext dbContext) =>
 {
-    if (context.User.Identity?.IsAuthenticated != true)
-    {
-        return Results.Unauthorized();
-    }
-    
-    var user = await userManager.GetUserAsync(context.User);
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
     if (user == null)
     {
         return Results.Unauthorized();
@@ -465,15 +432,9 @@ app.MapPost("/api/purchases/checkout", async (
 
 app.MapGet("/api/purchases/my-seals", async (
     HttpContext context,
-    UserManager<ApplicationUser> userManager,
     ApplicationDbContext dbContext) =>
 {
-    if (context.User.Identity?.IsAuthenticated != true)
-    {
-        return Results.Unauthorized();
-    }
-    
-    var user = await userManager.GetUserAsync(context.User);
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
     if (user == null)
     {
         return Results.Unauthorized();
@@ -496,15 +457,9 @@ app.MapGet("/api/purchases/my-seals", async (
 app.MapGet("/api/purchases/download/{sealId}", async (
     string sealId,
     HttpContext context,
-    UserManager<ApplicationUser> userManager,
     ApplicationDbContext dbContext) =>
 {
-    if (context.User.Identity?.IsAuthenticated != true)
-    {
-        return Results.Unauthorized();
-    }
-    
-    var user = await userManager.GetUserAsync(context.User);
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
     if (user == null)
     {
         return Results.Unauthorized();
@@ -535,7 +490,6 @@ app.MapGet("/api/purchases/download/{sealId}", async (
 app.MapGet("/api/purchases/owns/{sealId}", async (
     string sealId,
     HttpContext context,
-    UserManager<ApplicationUser> userManager,
     ApplicationDbContext dbContext) =>
 {
     if (context.User.Identity?.IsAuthenticated != true)
@@ -543,7 +497,7 @@ app.MapGet("/api/purchases/owns/{sealId}", async (
         return Results.Ok(new { owns = false });
     }
     
-    var user = await userManager.GetUserAsync(context.User);
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
     if (user == null)
     {
         return Results.Ok(new { owns = false });
@@ -558,7 +512,6 @@ app.MapGet("/api/purchases/owns/{sealId}", async (
 app.MapPost("/api/purchases/check-multiple", async (
     CheckMultipleRequest request,
     HttpContext context,
-    UserManager<ApplicationUser> userManager,
     ApplicationDbContext dbContext) =>
 {
     if (context.User.Identity?.IsAuthenticated != true)
@@ -566,7 +519,7 @@ app.MapPost("/api/purchases/check-multiple", async (
         return Results.Ok(new { ownedSealIds = new List<string>() });
     }
     
-    var user = await userManager.GetUserAsync(context.User);
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
     if (user == null)
     {
         return Results.Ok(new { ownedSealIds = new List<string>() });
