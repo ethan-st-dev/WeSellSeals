@@ -164,26 +164,24 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
     
-    - name: Build Container Image
-      working-directory: ./Server
+    - name: Build and Push to Azure Container Registry
       run: |
         az acr build \
-          --registry $(az acr list --resource-group WeSellSeals-Production-RG --query "[0].name" -o tsv || echo "wesellsealsacr") \
+          --registry wesellsealsacr \
+          --resource-group WeSellSeals-Production-RG \
           --image wesellseals-api:${{ github.sha }} \
           --image wesellseals-api:latest \
           --file Dockerfile \
-          . || echo "ACR not found, using direct deployment"
+          .
+      working-directory: ./Server
     
     - name: Deploy to Azure Container Apps
       run: |
-        az containerapp up \
+        az containerapp update \
           --name wesellseals-api \
           --resource-group WeSellSeals-Production-RG \
-          --environment wesellseals-env \
-          --source ./Server \
-          --target-port 8080 \
-          --ingress external \
-          --env-vars \
+          --image wesellsealsacr.azurecr.io/wesellseals-api:latest \
+          --set-env-vars \
             "ConnectionStrings__AzureSqlConnection=${{ secrets.AZURE_SQL_CONNECTION_STRING }}" \
             "Stripe__SecretKey=${{ secrets.STRIPE_SECRET_KEY }}" \
             "ASPNETCORE_ENVIRONMENT=Production"
