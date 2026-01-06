@@ -15,11 +15,12 @@ export default defineConfig(({ mode }) => ({
     setupFiles: "./app/test/setup.ts",
     css: true,
     coverage: {
-      provider: 'v8', // or 'istanbul'
+      provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: [
         'app/components/**/*.{ts,tsx}',
         'app/routes/**/*.{ts,tsx}',
+        'app/context/**/*.{ts,tsx}',
       ],
       exclude: [
         'app/test/**',
@@ -27,7 +28,7 @@ export default defineConfig(({ mode }) => ({
         '**/*.spec.{ts,tsx}',
         '**/node_modules/**',
       ],
-      all: true, // This is the key! Reports on all files, even untested ones
+      all: true,
     }
   },
 

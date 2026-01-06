@@ -18,7 +18,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: '10.0.x'
     
     - name: Restore Server dependencies
       run: dotnet restore
@@ -94,7 +94,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: '10.0.x'
     
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -124,6 +124,86 @@ jobs:
       run: |
         echo "Checking frontend build output..."
         ls -la ./Client/build/
+
+  # Deploy to Azure Production
+  deploy-production:
+    name: Deploy to Azure Production
+    runs-on: ubuntu-latest
+    needs: [build-check]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://wesellseals-client.azurestaticapps.net
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: ./Client/package-lock.json
+    
+    # Build and Publish Backend
+    - name: Restore Backend Dependencies
+      run: dotnet restore
+      working-directory: ./Server
+    
+    - name: Publish Backend
+      run: dotnet publish --configuration Release --output ./publish
+      working-directory: ./Server
+    
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Deploy Backend to Azure App Service
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+        package: ./Server/publish
+    
+    # Run Database Migrations
+    - name: Install EF Core Tools
+      run: dotnet tool install --global dotnet-ef
+    
+    - name: Run Database Migrations
+      run: |
+        dotnet ef database update --project ./Server --connection "${{ secrets.AZURE_SQL_CONNECTION_STRING }}"
+      env:
+        ASPNETCORE_ENVIRONMENT: Production
+    
+    # Build and Deploy Frontend
+    - name: Install Frontend Dependencies
+      run: npm ci
+      working-directory: ./Client
+    
+    - name: Build Frontend
+      run: npm run build
+      working-directory: ./Client
+      env:
+        VITE_API_URL: ${{ secrets.AZURE_API_URL }}
+        VITE_STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
+    
+    - name: Deploy Frontend to Azure Static Web Apps
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        action: "upload"
+        app_location: "./Client/build"
+        skip_app_build: true
+    
+    - name: Logout from Azure
+      run: az logout
+      if: always()
 
   # Test Summary
   test-summary:
