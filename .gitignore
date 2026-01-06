@@ -2,6 +2,7 @@
 Server/bin/
 Server/obj/
 Server/appsettings.json
+Server/appsettings.Production.json
 *.db
 *.db-shm
 *.db-wal
@@ -38,3 +39,4 @@ Client/build/
 # Environment
 *.env
 *.env.local
+*.md

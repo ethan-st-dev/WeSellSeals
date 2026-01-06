@@ -10,16 +10,30 @@ var builder = WebApplication.CreateBuilder(args);
 StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
 
 // Add services to the container.
-// Use InMemory database for testing, SQLite for development/production
+// Configure database based on environment
 if (builder.Environment.EnvironmentName == "Testing")
 {
+    // Testing: Use InMemory database
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseInMemoryDatabase("TestDatabase"));
 }
+else if (builder.Environment.IsProduction())
+{
+    // Production: Use Azure SQL Database
+    var connectionString = builder.Configuration.GetConnectionString("AzureSqlConnection")
+        ?? throw new InvalidOperationException("Connection string 'AzureSqlConnection' not found.");
+    
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseSqlServer(connectionString));
+}
 else
 {
+    // Development: Use SQLite
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? "Data Source=wesellseals.db";
+    
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+        options.UseSqlite(connectionString));
 }
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -49,7 +63,11 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "https://localhost:5173")
+        policy.WithOrigins(
+                "http://localhost:5173", 
+                "https://localhost:5173",
+                "https://wesellseals-client.azurestaticapps.net"
+              )
               .AllowCredentials()
               .AllowAnyHeader()
               .AllowAnyMethod()
