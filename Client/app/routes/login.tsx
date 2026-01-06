@@ -1,6 +1,4 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router";
-import { useAuth } from "../context/AuthContext";
+import { SignIn } from "@clerk/clerk-react";
 import type { Route } from "./+types/login";
 
 export function meta({}: Route.MetaArgs) {
@@ -11,43 +9,28 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Login() {
-  const navigate = useNavigate();
-  const { login } = useAuth();
-  const [searchParams] = useSearchParams();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const redirectPath = searchParams.get("redirect") || "/";
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      const response = await fetch("http://localhost:5159/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Login successful:", data);
-        await login(email);
-        navigate(redirectPath);
-      } else {
-        setError("Invalid email or password");
-      }
-    } catch (err) {
-      setError("An error occurred. Please try again.");
-      console.error("Login error:", err);
-    } finally {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 mb-8">
+          Sign in to We Sell Seals
+        </h2>
+        <SignIn 
+          routing="path"
+          path="/login"
+          signUpUrl="/signup"
+          afterSignInUrl="/"
+          appearance={{
+            elements: {
+              rootBox: "mx-auto",
+              card: "shadow-xl"
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
       setLoading(false);
     }
   };
