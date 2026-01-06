@@ -53,7 +53,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error getting token:', error);
       return null;
     }
-  };}
   };
 
   const cleanCartOfOwnedSeals = async () => {
@@ -124,6 +123,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};;
+};
 
 export const useAuth = () => useContext(AuthContext);
