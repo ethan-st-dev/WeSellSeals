@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
+import { UserButton, SignedIn, SignedOut } from "@clerk/clerk-react";
 
 export default function Header() {
   const { state } = useCart();
@@ -66,31 +67,36 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-4">
-          {loading ? (
-            <div className="text-sm text-gray-500">Loading...</div>
-          ) : user ? (
+          <SignedOut>
+            <Link
+              to="/login"
+              className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            >
+              Login
+            </Link>
+            <Link
+              to="/signup"
+              className="text-sm font-medium px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+            >
+              Sign Up
+            </Link>
+          </SignedOut>
+          <SignedIn>
             <Link
               to="/user"
-              className="text-sm font-medium px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md hover:from-indigo-700 hover:to-purple-700 transition"
+              className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
             >
-              {user.email}
+              My Seals
             </Link>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-              >
-                Login
-              </Link>
-              <Link
-                to="/signup"
-                className="text-sm font-medium px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-              >
-                Sign Up
-              </Link>
-            </>
-          )}
+            <UserButton 
+              afterSignOutUrl="/"
+              appearance={{
+                elements: {
+                  avatarBox: "w-8 h-8"
+                }
+              }}
+            />
+          </SignedIn>
           <Link
             to="/cart"
             aria-label="Open cart"

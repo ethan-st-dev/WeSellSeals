@@ -1,7 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
+import { useUser, useClerk, useSession } from '@clerk/clerk-react';
 
 interface User {
   email: string;
+  id: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 interface AuthContextType {
@@ -9,6 +13,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string) => Promise<void>;
   logout: () => void;
+  getToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,40 +21,38 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   login: async () => {},
   logout: () => {},
+  getToken: async () => null,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user: clerkUser, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  const { session } = useSession();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('http://localhost:5159/api/auth/user', {
-          credentials: 'include',
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.email) {
-            setUser({ email: data.email });
-          }
-        }
-      } catch (error) {
-        console.error('Error checking auth:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
+    if (isLoaded && clerkUser) {
+      cleanCartOfOwnedSeals();
+    }
+  }, [isLoaded, clerkUser]);
 
   const login = async (email: string) => {
-    setUser({ email });
-    
-    // Check cart for owned seals and remove them
+    // Login is handled by Clerk, this is just for compatibility
     await cleanCartOfOwnedSeals();
+  };
+
+  const logout = async () => {
+    await signOut();
+  };
+  const getToken = async (): Promise<string | null> => {
+    if (!session) return null;
+    try {
+      // Get the session token from Clerk
+      const token = await session.getToken();
+      return token;
+    } catch (error) {
+      console.error('Error getting token:', error);
+      return null;
+    }
   };
 
   const cleanCartOfOwnedSeals = async () => {
@@ -63,13 +66,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const sealIds = cart.items.map((item: any) => item.id);
       
+      // Get auth token
+      const token = await getToken();
+      if (!token) return;
+      
       // Check which seals the user already owns
-      const response = await fetch('http://localhost:5159/api/purchases/check-multiple', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5159';
+      const response = await fetch(`${apiUrl}/api/purchases/check-multiple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        credentials: 'include',
         body: JSON.stringify({ sealIds }),
       });
       
@@ -101,20 +109,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = async () => {
-    try {
-      await fetch('http://localhost:5159/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      setUser(null);
-    } catch (error) {
-      console.error('Error logging out:', error);
-    }
-  };
+  const user = clerkUser
+    ? {
+        email: clerkUser.primaryEmailAddress?.emailAddress || '',
+        id: clerkUser.id,
+        firstName: clerkUser.firstName || undefined,
+        lastName: clerkUser.lastName || undefined,
+      }
+    : null;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading: !isLoaded, login, logout, getToken }}>
       {children}
     </AuthContext.Provider>
   );
