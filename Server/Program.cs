@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Server.Data;
 using Server.Models;
+using Server.Services;
 using Stripe;
 using DotNetEnv;
 
@@ -84,6 +85,9 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddAuthorization();
 
+// Register Blob Storage Service
+builder.Services.AddSingleton<IBlobStorageService, BlobStorageService>();
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -94,6 +98,12 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     dbContext.Database.EnsureCreated();
+    
+    // Seed sample data in development
+    if (app.Environment.IsDevelopment())
+    {
+        await SeedData.SeedProducts(dbContext);
+    }
 }
 
 // Configure the HTTP request pipeline.
@@ -491,7 +501,8 @@ app.MapGet("/api/purchases/my-seals", async (
 app.MapGet("/api/purchases/download/{sealId}", async (
     string sealId,
     HttpContext context,
-    ApplicationDbContext dbContext) =>
+    ApplicationDbContext dbContext,
+    IBlobStorageService blobStorage) =>
 {
     var user = await GetOrCreateUserFromClerk(context, dbContext);
     if (user == null)
@@ -508,14 +519,25 @@ app.MapGet("/api/purchases/download/{sealId}", async (
         return Results.NotFound(new { message = "You do not own this seal" });
     }
     
-    // In production, you would serve the actual 3D model file from storage
-    // For now, return a placeholder GLB file
-    var placeholderContent = System.Text.Encoding.UTF8.GetBytes(
-        $"# {purchase.SealTitle} 3D Model\\n# Placeholder file - replace with actual GLB model"
-    );
+    // Download the 3D model from blob storage
+    var modelStream = await blobStorage.DownloadModelAsync(sealId);
+    
+    if (modelStream == null)
+    {
+        // Return placeholder if model not yet uploaded
+        var placeholderContent = System.Text.Encoding.UTF8.GetBytes(
+            $"# {purchase.SealTitle} 3D Model\n# Model file not yet available"
+        );
+        
+        return Results.File(
+            placeholderContent,
+            contentType: "model/gltf-binary",
+            fileDownloadName: $"{purchase.SealTitle.Replace(" ", "-")}.glb"
+        );
+    }
     
     return Results.File(
-        placeholderContent,
+        modelStream,
         contentType: "model/gltf-binary",
         fileDownloadName: $"{purchase.SealTitle.Replace(" ", "-")}.glb"
     );
@@ -543,6 +565,56 @@ app.MapGet("/api/purchases/owns/{sealId}", async (
     return Results.Ok(new { owns });
 });
 
+// Admin endpoint to upload 3D model
+app.MapPost("/api/admin/upload-model/{sealId}", async (
+    string sealId,
+    HttpRequest request,
+    IBlobStorageService blobStorage) =>
+{
+    if (!request.HasFormContentType || request.Form.Files.Count == 0)
+    {
+        return Results.BadRequest(new { message = "No file uploaded" });
+    }
+
+    var file = request.Form.Files[0];
+    
+    if (!file.FileName.EndsWith(".glb", StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.BadRequest(new { message = "Only GLB files are supported" });
+    }
+
+    using var stream = file.OpenReadStream();
+    var url = await blobStorage.UploadModelAsync(sealId, stream, "model/gltf-binary");
+    
+    return Results.Ok(new { success = true, url, sealId });
+}).RequireAuthorization(); // TODO: Add admin role check
+
+// Admin endpoint to upload seal image
+app.MapPost("/api/admin/upload-image/{sealId}", async (
+    string sealId,
+    HttpRequest request,
+    IBlobStorageService blobStorage) =>
+{
+    if (!request.HasFormContentType || request.Form.Files.Count == 0)
+    {
+        return Results.BadRequest(new { message = "No file uploaded" });
+    }
+
+    var file = request.Form.Files[0];
+    
+    var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp" };
+    if (!allowedTypes.Contains(file.ContentType))
+    {
+        return Results.BadRequest(new { message = "Only JPG, PNG, and WebP images are supported" });
+    }
+
+    using var stream = file.OpenReadStream();
+    var url = await blobStorage.UploadImageAsync(sealId, stream, file.ContentType);
+    
+    return Results.Ok(new { success = true, url, sealId });
+}).RequireAuthorization(); // TODO: Add admin role check
+
+
 app.MapPost("/api/purchases/check-multiple", async (
     CheckMultipleRequest request,
     HttpContext context,
@@ -566,6 +638,273 @@ app.MapPost("/api/purchases/check-multiple", async (
     
     return Results.Ok(new { ownedSealIds });
 });
+
+// Product CRUD Endpoints
+
+// Get all products
+app.MapGet("/api/products", async (ApplicationDbContext dbContext) =>
+{
+    var products = await dbContext.Products.ToListAsync();
+    return Results.Ok(products.Select(p => new
+    {
+        p.Id,
+        p.Title,
+        p.Price,
+        Image = p.ImageUrl ?? "/seal-logo2.png",
+        p.ShortDescription,
+        p.LongDescription,
+        ModelUrl = p.ModelUrl,
+        p.Category,
+        p.Subcategory,
+        Tags = p.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()
+    }));
+});
+
+// Get single product
+app.MapGet("/api/products/{id}", async (string id, ApplicationDbContext dbContext) =>
+{
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound();
+    }
+    
+    return Results.Ok(new
+    {
+        product.Id,
+        product.Title,
+        product.Price,
+        Image = product.ImageUrl ?? "/seal-logo2.png",
+        product.ShortDescription,
+        product.LongDescription,
+        ModelUrl = product.ModelUrl,
+        product.Category,
+        product.Subcategory,
+        Tags = product.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()
+    });
+});
+
+// Create product with image and model files
+app.MapPost("/api/products", async (
+    HttpRequest request,
+    ApplicationDbContext dbContext,
+    IBlobStorageService blobStorage) =>
+{
+    // TODO: Add admin role check
+    
+    var form = await request.ReadFormAsync();
+    
+    // Parse JSON data from form
+    var jsonData = form["data"].ToString();
+    if (string.IsNullOrEmpty(jsonData))
+    {
+        return Results.BadRequest(new { message = "Product data is required" });
+    }
+    
+    CreateProductRequest? productRequest;
+    try
+    {
+        productRequest = System.Text.Json.JsonSerializer.Deserialize<CreateProductRequest>(jsonData, 
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+    catch
+    {
+        return Results.BadRequest(new { message = "Invalid JSON data" });
+    }
+    
+    if (productRequest == null)
+    {
+        return Results.BadRequest(new { message = "Invalid product data" });
+    }
+    
+    // Check if product ID already exists
+    if (await dbContext.Products.AnyAsync(p => p.Id == productRequest.Id))
+    {
+        return Results.BadRequest(new { message = "Product with this ID already exists" });
+    }
+    
+    var product = new Server.Models.Product
+    {
+        Id = productRequest.Id,
+        Title = productRequest.Title,
+        Price = productRequest.Price,
+        ShortDescription = productRequest.ShortDescription,
+        LongDescription = productRequest.LongDescription,
+        Category = productRequest.Category,
+        Subcategory = productRequest.Subcategory,
+        Tags = string.Join(",", productRequest.Tags),
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    
+    // Upload image if provided
+    var imageFile = form.Files.GetFile("image");
+    if (imageFile != null)
+    {
+        var allowedImageTypes = new[] { "image/jpeg", "image/png", "image/webp" };
+        if (!allowedImageTypes.Contains(imageFile.ContentType))
+        {
+            return Results.BadRequest(new { message = "Only JPG, PNG, and WebP images are supported" });
+        }
+        
+        using var imageStream = imageFile.OpenReadStream();
+        product.ImageUrl = await blobStorage.UploadImageAsync(product.Id, imageStream, imageFile.ContentType);
+    }
+    
+    // Upload model if provided
+    var modelFile = form.Files.GetFile("model");
+    if (modelFile != null)
+    {
+        if (modelFile.ContentType != "model/gltf-binary" && !modelFile.FileName.EndsWith(".glb"))
+        {
+            return Results.BadRequest(new { message = "Only GLB model files are supported" });
+        }
+        
+        using var modelStream = modelFile.OpenReadStream();
+        product.ModelUrl = await blobStorage.UploadModelAsync(product.Id, modelStream, "model/gltf-binary");
+    }
+    
+    dbContext.Products.Add(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Created($"/api/products/{product.Id}", new
+    {
+        product.Id,
+        product.Title,
+        product.Price,
+        Image = product.ImageUrl ?? "/seal-logo2.png",
+        product.ShortDescription,
+        product.LongDescription,
+        ModelUrl = product.ModelUrl,
+        product.Category,
+        product.Subcategory,
+        Tags = product.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()
+    });
+}).DisableAntiforgery().RequireAuthorization();
+
+// Update product
+app.MapPut("/api/products/{id}", async (
+    string id,
+    HttpRequest request,
+    ApplicationDbContext dbContext,
+    IBlobStorageService blobStorage) =>
+{
+    // TODO: Add admin role check
+    
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound();
+    }
+    
+    var form = await request.ReadFormAsync();
+    
+    // Parse JSON data from form
+    var jsonData = form["data"].ToString();
+    if (string.IsNullOrEmpty(jsonData))
+    {
+        return Results.BadRequest(new { message = "Product data is required" });
+    }
+    
+    UpdateProductRequest? updateRequest;
+    try
+    {
+        updateRequest = System.Text.Json.JsonSerializer.Deserialize<UpdateProductRequest>(jsonData,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+    catch
+    {
+        return Results.BadRequest(new { message = "Invalid JSON data" });
+    }
+    
+    if (updateRequest == null)
+    {
+        return Results.BadRequest(new { message = "Invalid product data" });
+    }
+    
+    // Update properties
+    product.Title = updateRequest.Title;
+    product.Price = updateRequest.Price;
+    product.ShortDescription = updateRequest.ShortDescription;
+    product.LongDescription = updateRequest.LongDescription;
+    product.Category = updateRequest.Category;
+    product.Subcategory = updateRequest.Subcategory;
+    product.Tags = string.Join(",", updateRequest.Tags);
+    product.UpdatedAt = DateTime.UtcNow;
+    
+    // Update image if provided
+    var imageFile = form.Files.GetFile("image");
+    if (imageFile != null)
+    {
+        var allowedImageTypes = new[] { "image/jpeg", "image/png", "image/webp" };
+        if (!allowedImageTypes.Contains(imageFile.ContentType))
+        {
+            return Results.BadRequest(new { message = "Only JPG, PNG, and WebP images are supported" });
+        }
+        
+        // Delete old image
+        await blobStorage.DeleteImageAsync(product.Id);
+        
+        using var imageStream = imageFile.OpenReadStream();
+        product.ImageUrl = await blobStorage.UploadImageAsync(product.Id, imageStream, imageFile.ContentType);
+    }
+    
+    // Update model if provided
+    var modelFile = form.Files.GetFile("model");
+    if (modelFile != null)
+    {
+        if (modelFile.ContentType != "model/gltf-binary" && !modelFile.FileName.EndsWith(".glb"))
+        {
+            return Results.BadRequest(new { message = "Only GLB model files are supported" });
+        }
+        
+        // Delete old model
+        await blobStorage.DeleteModelAsync(product.Id);
+        
+        using var modelStream = modelFile.OpenReadStream();
+        product.ModelUrl = await blobStorage.UploadModelAsync(product.Id, modelStream, "model/gltf-binary");
+    }
+    
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Ok(new
+    {
+        product.Id,
+        product.Title,
+        product.Price,
+        Image = product.ImageUrl ?? "/seal-logo2.png",
+        product.ShortDescription,
+        product.LongDescription,
+        ModelUrl = product.ModelUrl,
+        product.Category,
+        product.Subcategory,
+        Tags = product.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()
+    });
+}).DisableAntiforgery().RequireAuthorization();
+
+// Delete product
+app.MapDelete("/api/products/{id}", async (
+    string id,
+    ApplicationDbContext dbContext,
+    IBlobStorageService blobStorage) =>
+{
+    // TODO: Add admin role check
+    
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound();
+    }
+    
+    // Delete associated files from blob storage
+    await blobStorage.DeleteImageAsync(product.Id);
+    await blobStorage.DeleteModelAsync(product.Id);
+    
+    dbContext.Products.Remove(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.NoContent();
+}).RequireAuthorization();
 
 var summaries = new[]
 {

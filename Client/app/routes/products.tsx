@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams, Link } from "react-router";
 import type { Route } from "./+types/products";
-import { products, categoryInfo, type ProductCategory, searchProducts, getProductsByCategory } from "../data/products";
+import { categoryInfo, type ProductCategory, type Product } from "../data/products";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { API_URL } from "../lib/apiClient";
@@ -18,6 +18,8 @@ export default function Products() {
   const { addItem, isInCart } = useCart();
   const { user, getToken } = useAuth();
   const [ownedProducts, setOwnedProducts] = useState<Set<string>>(new Set());
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   
   const categoryParam = searchParams.get("category") as ProductCategory | null;
   const searchParam = searchParams.get("search") || "";
@@ -28,6 +30,25 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState(searchParam);
   const [sortBy, setSortBy] = useState<"name" | "price-low" | "price-high">("name");
 
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/products`);
+        if (response.ok) {
+          const data = await response.json();
+          setProducts(data);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   // Sync state with URL parameters when they change
   useEffect(() => {
     setSelectedCategory(categoryParam || "all");
@@ -37,7 +58,7 @@ export default function Products() {
   // Check which products the user owns
   useEffect(() => {
     const checkOwnership = async () => {
-      if (!user) {
+      if (!user || products.length === 0) {
         setOwnedProducts(new Set());
         return;
       }
@@ -66,14 +87,14 @@ export default function Products() {
     };
 
     checkOwnership();
-  }, [user, getToken]);
+  }, [user, getToken, products]);
 
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = products;
 
     // Filter by category
     if (selectedCategory !== "all") {
-      filtered = getProductsByCategory(selectedCategory);
+      filtered = products.filter(p => p.category === selectedCategory);
     }
 
     // Filter by search query
@@ -104,7 +125,7 @@ export default function Products() {
     }
 
     return sorted;
-  }, [searchQuery, selectedCategory, sortBy]);
+  }, [searchQuery, selectedCategory, sortBy, products]);
 
   const categoryCount = useMemo(() => {
     const counts: Record<string, number> = { all: products.length };
@@ -112,7 +133,7 @@ export default function Products() {
       counts[product.category] = (counts[product.category] || 0) + 1;
     });
     return counts;
-  }, []);
+  }, [products]);
 
   const handleCategoryChange = (category: ProductCategory | "all") => {
     setSelectedCategory(category);
@@ -156,6 +177,17 @@ export default function Products() {
       alert('Failed to download file. Please try again.');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading products...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

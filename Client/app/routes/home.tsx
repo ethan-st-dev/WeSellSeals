@@ -1,7 +1,9 @@
 import type { Route } from "./+types/home";
 import ProductCard from "../components/ProductCard";
-import { products, categoryInfo, getProductsByCategory } from "../data/products";
+import { categoryInfo, type Product } from "../data/products";
 import { Link } from "react-router";
+import { useState, useEffect } from "react";
+import { API_URL } from "../lib/apiClient";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -11,13 +13,49 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/products`);
+        if (response.ok) {
+          const data = await response.json();
+          setProducts(data);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   // Get featured products from each category (2 from each)
+  const getProductsByCategory = (category: string) => 
+    products.filter(p => p.category === category);
+
   const featuredSeals = getProductsByCategory("seals").slice(0, 2);
   const featuredSciFi = getProductsByCategory("sci-fi").slice(0, 2);
   const featuredPirates = getProductsByCategory("pirates").slice(0, 2);
   const featuredFantasy = getProductsByCategory("fantasy").slice(0, 2);
   const featuredVehicles = getProductsByCategory("vehicles").slice(0, 2);
   const featuredAnimals = getProductsByCategory("animals").slice(0, 2);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading products...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">

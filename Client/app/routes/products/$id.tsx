@@ -1,29 +1,60 @@
 import type { Route } from "./+types/$id";
-import { products } from "../../data/products";
+import { type Product } from "../../data/products";
 import { useCart } from "../../context/CartContext";
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { API_URL } from "../../lib/apiClient";
 
-export function meta({ params }: Route.MetaArgs) {
-  const product = products.find((p) => p.id === params.id);
-  if (!product) {
+export async function loader({ params }: Route.LoaderArgs) {
+  try {
+    const response = await fetch(`${API_URL}/api/products/${params.id}`);
+    if (!response.ok) {
+      return { product: null };
+    }
+    const product = await response.json();
+    return { product };
+  } catch (error) {
+    console.error('Error fetching product:', error);
+    return { product: null };
+  }
+}
+
+export function meta({ data }: Route.MetaArgs) {
+  if (!data?.product) {
     return [{ title: "Product Not Found" }];
   }
   return [
-    { title: `${product.title} — WeSellSeals` },
-    { name: "description", content: product.shortDescription },
+    { title: `${data.product.title} — WeSellSeals` },
+    { name: "description", content: data.product.shortDescription },
   ];
 }
 
-export default function ProductDetail({ params }: Route.ComponentProps) {
-  const product = products.find((p) => p.id === params.id);
+export default function ProductDetail({ params, loaderData }: Route.ComponentProps) {
+  const [product, setProduct] = useState<Product | null>(loaderData?.product || null);
   const { addItem, isInCart } = useCart();
   const { user, getToken } = useAuth();
   const [viewMode, setViewMode] = useState<'image' | '3d'>('3d');
   const [autoRotate, setAutoRotate] = useState(true);
   const [isOwned, setIsOwned] = useState(false);
   const [checkingOwnership, setCheckingOwnership] = useState(true);
+
+  // Fetch product if not loaded
+  useEffect(() => {
+    if (!product) {
+      const fetchProduct = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/products/${params.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            setProduct(data);
+          }
+        } catch (error) {
+          console.error('Error fetching product:', error);
+        }
+      };
+      fetchProduct();
+    }
+  }, [params.id, product]);
 
   useEffect(() => {
     const checkOwnership = async () => {
