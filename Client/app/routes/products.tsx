@@ -1,30 +1,52 @@
-import React, { useState, useMemo } from "react";
-import { seals, sealCategories, type SealCategory } from "../../data/seals";
-import { useCart } from "../../context/CartContext";
-import { Link } from "react-router";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams, Link } from "react-router";
+import type { Route } from "./+types/products";
+import { products, categoryInfo, type ProductCategory, searchProducts, getProductsByCategory } from "../data/products";
+import { useCart } from "../context/CartContext";
 
-export default function SealsIndex() {
+export function meta({}: Route.MetaArgs) {
+  return [
+    { title: "Browse 3D Models — WeSellSeals" },
+    { name: "description", content: "Browse our collection of 3D printable models" },
+  ];
+}
+
+export default function Products() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addItem } = useCart();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<SealCategory | "all">("all");
+  
+  const categoryParam = searchParams.get("category") as ProductCategory | null;
+  const searchParam = searchParams.get("search") || "";
+  
+  const [selectedCategory, setSelectedCategory] = useState<ProductCategory | "all">(
+    categoryParam || "all"
+  );
+  const [searchQuery, setSearchQuery] = useState(searchParam);
   const [sortBy, setSortBy] = useState<"name" | "price-low" | "price-high">("name");
 
-  const filteredAndSortedSeals = useMemo(() => {
-    let filtered = seals;
+  // Sync state with URL parameters when they change
+  useEffect(() => {
+    setSelectedCategory(categoryParam || "all");
+    setSearchQuery(searchParam);
+  }, [categoryParam, searchParam]);
+
+  const filteredAndSortedProducts = useMemo(() => {
+    let filtered = products;
 
     // Filter by category
     if (selectedCategory !== "all") {
-      filtered = filtered.filter((seal) => seal.category === selectedCategory);
+      filtered = getProductsByCategory(selectedCategory);
     }
 
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (seal) =>
-          seal.title.toLowerCase().includes(query) ||
-          seal.shortDescription.toLowerCase().includes(query) ||
-          seal.tags.some((tag) => tag.toLowerCase().includes(query))
+        (product) =>
+          product.title.toLowerCase().includes(query) ||
+          product.shortDescription.toLowerCase().includes(query) ||
+          product.tags.some((tag) => tag.toLowerCase().includes(query)) ||
+          (product.subcategory && product.subcategory.toLowerCase().includes(query))
       );
     }
 
@@ -47,22 +69,32 @@ export default function SealsIndex() {
   }, [searchQuery, selectedCategory, sortBy]);
 
   const categoryCount = useMemo(() => {
-    const counts: Record<string, number> = { all: seals.length };
-    seals.forEach((seal) => {
-      counts[seal.category] = (counts[seal.category] || 0) + 1;
+    const counts: Record<string, number> = { all: products.length };
+    products.forEach((product) => {
+      counts[product.category] = (counts[product.category] || 0) + 1;
     });
     return counts;
   }, []);
+
+  const handleCategoryChange = (category: ProductCategory | "all") => {
+    setSelectedCategory(category);
+    if (category === "all") {
+      searchParams.delete("category");
+    } else {
+      searchParams.set("category", category);
+    }
+    setSearchParams(searchParams);
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-          Browse Our Seal Collection
+          Browse 3D Models
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Discover {seals.length} unique seal figurines across 9 species
+          Discover {products.length} unique 3D printable models across {Object.keys(categoryInfo).length} categories
         </p>
       </div>
 
@@ -71,7 +103,7 @@ export default function SealsIndex() {
         <div className="relative">
           <input
             type="search"
-            placeholder="Search seals by name, description, or tags..."
+            placeholder="Search by name, description, or tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-3 pl-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -95,25 +127,26 @@ export default function SealsIndex() {
       {/* Categories */}
       <div className="flex flex-wrap gap-2 justify-center">
         <button
-          onClick={() => setSelectedCategory("all")}
+          onClick={() => handleCategoryChange("all")}
           className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
             selectedCategory === "all"
               ? "bg-indigo-600 text-white"
               : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
           }`}
         >
-          All Seals ({categoryCount.all})
+          All Products ({categoryCount.all})
         </button>
-        {Object.entries(sealCategories).map(([key, { name }]) => (
+        {Object.entries(categoryInfo).map(([key, { name, icon }]) => (
           <button
             key={key}
-            onClick={() => setSelectedCategory(key as SealCategory)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+            onClick={() => handleCategoryChange(key as ProductCategory)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
               selectedCategory === key
                 ? "bg-indigo-600 text-white"
                 : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
             }`}
           >
+            <span>{icon}</span>
             {name} ({categoryCount[key] || 0})
           </button>
         ))}
@@ -123,7 +156,7 @@ export default function SealsIndex() {
       {selectedCategory !== "all" && (
         <div className="max-w-3xl mx-auto text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
           <p className="text-gray-700 dark:text-gray-300">
-            {sealCategories[selectedCategory].description}
+            {categoryInfo[selectedCategory].description}
           </p>
         </div>
       )}
@@ -131,7 +164,7 @@ export default function SealsIndex() {
       {/* Sort and Results Count */}
       <div className="flex items-center justify-between">
         <p className="text-gray-600 dark:text-gray-400">
-          {filteredAndSortedSeals.length} seal{filteredAndSortedSeals.length !== 1 ? "s" : ""} found
+          {filteredAndSortedProducts.length} model{filteredAndSortedProducts.length !== 1 ? "s" : ""} found
         </p>
         <div className="flex items-center gap-2">
           <label htmlFor="sort" className="text-sm text-gray-600 dark:text-gray-400">
@@ -150,17 +183,17 @@ export default function SealsIndex() {
         </div>
       </div>
 
-      {/* Seals Grid */}
-      <section aria-label="Seals list">
-        {filteredAndSortedSeals.length === 0 ? (
+      {/* Products Grid */}
+      <section aria-label="Products list">
+        {filteredAndSortedProducts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-600 dark:text-gray-400 text-lg">
-              No seals found matching your criteria.
+              No models found matching your criteria.
             </p>
             <button
               onClick={() => {
                 setSearchQuery("");
-                setSelectedCategory("all");
+                handleCategoryChange("all");
               }}
               className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline"
             >
@@ -169,16 +202,16 @@ export default function SealsIndex() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredAndSortedSeals.map((s) => (
+            {filteredAndSortedProducts.map((p) => (
               <article
-                key={s.id}
+                key={p.id}
                 className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
               >
-                <Link to={`/seals/${s.id}`} className="block">
+                <Link to={`/products/${p.id}`} className="block">
                   <div className="w-full h-48 bg-gray-100 dark:bg-gray-700">
                     <img
-                      src={s.image}
-                      alt={s.title}
+                      src={p.image}
+                      alt={p.title}
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
@@ -187,22 +220,23 @@ export default function SealsIndex() {
 
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <Link to={`/seals/${s.id}`} className="flex-1">
+                    <Link to={`/products/${p.id}`} className="flex-1">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400">
-                        {s.title}
+                        {p.title}
                       </h2>
                     </Link>
-                    <span className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full whitespace-nowrap">
-                      {sealCategories[s.category].name.split(" ")[0]}
+                    <span className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full whitespace-nowrap flex items-center gap-1">
+                      <span>{categoryInfo[p.category].icon}</span>
+                      {categoryInfo[p.category].name}
                     </span>
                   </div>
 
                   <p className="text-sm text-gray-600 dark:text-gray-300 my-2 line-clamp-2">
-                    {s.shortDescription}
+                    {p.shortDescription}
                   </p>
 
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {s.tags.slice(0, 2).map((tag) => (
+                    {p.tags.slice(0, 3).map((tag) => (
                       <span
                         key={tag}
                         className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded"
@@ -214,12 +248,12 @@ export default function SealsIndex() {
 
                   <div className="flex items-center justify-between mt-4">
                     <div className="text-indigo-600 dark:text-indigo-400 font-semibold text-lg">
-                      ${s.price.toFixed(2)}
+                      ${p.price.toFixed(2)}
                     </div>
                     <button
                       type="button"
                       onClick={() =>
-                        addItem({ id: s.id, title: s.title, price: s.price, imageSrc: s.image }, 1)
+                        addItem({ id: p.id, title: p.title, price: p.price, imageSrc: p.image }, 1)
                       }
                       className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors text-sm font-medium"
                     >

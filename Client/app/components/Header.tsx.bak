@@ -159,6 +159,7 @@ export default function Header() {
               </svg>
             </div>
           </form>
+          </form>
 
           <div className="flex items-center gap-4">
             <SignedOut>

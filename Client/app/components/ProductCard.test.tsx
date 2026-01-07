@@ -32,11 +32,11 @@ describe('ProductCard', () => {
     expect(image).toHaveAttribute('src', '/seals/harbor.jpg');
   });
 
-  it('links to seal detail page', () => {
+  it('links to product detail page', () => {
     renderWithRouter(<ProductCard {...mockSeal} />);
 
     const link = screen.getByRole('link', { name: /view details for harbor seal/i });
-    expect(link).toHaveAttribute('href', '/seals/harbor-seal');
+    expect(link).toHaveAttribute('href', '/products/harbor-seal');
   });
 
   it('displays formatted price correctly', () => {

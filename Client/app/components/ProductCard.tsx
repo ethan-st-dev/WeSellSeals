@@ -21,7 +21,7 @@ export default function ProductCard({
   return (
     <article className="group">
       <Link
-        to={`/seals/${id}`}
+        to={`/products/${id}`}
         aria-label={`View details for ${title}`}
         className="block rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg transform transition duration-200 ease-out motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
       >
