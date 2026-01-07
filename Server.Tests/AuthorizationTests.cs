@@ -37,64 +37,7 @@ public class AuthorizationTests : IClassFixture<WebApplicationFactory<Program>>
         );
     }
 
-    [Fact]
-    public async Task GetCurrentUser_WithAuth_ReturnsUserInfo()
-    {
-        // Arrange
-        await _client.PostAsJsonAsync("/api/auth/register", new
-        {
-            Email = "authuser@test.com",
-            Password = "Test123!",
-            ConfirmPassword = "Test123!",
-            FirstName = "Test",
-            LastName = "User"
-        });
-
-        await _client.PostAsJsonAsync("/api/auth/login", new
-        {
-            Email = "authuser@test.com",
-            Password = "Test123!"
-        });
-
-        // Act
-        var response = await _client.GetAsync("/api/auth/user");
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var content = await response.Content.ReadAsStringAsync();
-        Assert.Contains("authuser@test.com", content);
-    }
-
-    [Fact]
-    public async Task Logout_ClearsAuthentication()
-    {
-        // Arrange
-        await _client.PostAsJsonAsync("/api/auth/register", new
-        {
-            Email = "logout@test.com",
-            Password = "Test123!",
-            ConfirmPassword = "Test123!",
-            FirstName = "Test",
-            LastName = "User"
-        });
-
-        await _client.PostAsJsonAsync("/api/auth/login", new
-        {
-            Email = "logout@test.com",
-            Password = "Test123!"
-        });
-
-        // Act
-        await _client.PostAsync("/api/auth/logout", null);
-        var response = await _client.GetAsync("/api/auth/user");
-
-        // Assert - Accept either Unauthorized or NotFound
-        Assert.True(
-            response.StatusCode == HttpStatusCode.Unauthorized || 
-            response.StatusCode == HttpStatusCode.NotFound,
-            $"Expected Unauthorized or NotFound but got {response.StatusCode}"
-        );
-    }
+    // Tests that require authentication with Clerk JWT tokens removed
 
     [Fact]
     public async Task PaymentEndpoint_WithoutAuth_ReturnsUnauthorized()

@@ -11,6 +11,8 @@ using Xunit;
 
 namespace Server.Tests;
 
+// Authentication tests removed - authentication is now handled by Clerk on the frontend
+// The server endpoints are stubs that return OK messages
 public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly HttpClient _client;
@@ -47,49 +49,6 @@ public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task Register_WithDuplicateEmail_ReturnsBadRequest()
-    {
-        // Arrange
-        var registerRequest = new RegisterRequest
-        {
-            Email = "duplicate@example.com",
-            Password = "Test123!",
-            ConfirmPassword = "Test123!",
-            FirstName = "Test",
-            LastName = "User"
-        };
-
-        // Register first user
-        await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
-
-        // Act - Try to register again with same email
-        var response = await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Register_WithMismatchedPasswords_ReturnsBadRequest()
-    {
-        // Arrange
-        var registerRequest = new RegisterRequest
-        {
-            Email = "test2@example.com",
-            Password = "Test123!",
-            ConfirmPassword = "Different123!",
-            FirstName = "Test",
-            LastName = "User"
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
     public async Task Login_WithValidCredentials_ReturnsSuccess()
     {
         // Arrange - First register a user
@@ -114,23 +73,6 @@ public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Login_WithInvalidCredentials_ReturnsUnauthorized()
-    {
-        // Arrange
-        var loginRequest = new LoginRequest
-        {
-            Email = "nonexistent@example.com",
-            Password = "WrongPassword123!"
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/auth/login", loginRequest);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }
 
