@@ -81,7 +81,7 @@ export const products: Product[] = [
   },
   {
     id: "scifi-2",
-    title: "Cyberpunk Drone",
+    title: "Cyberpunk Dronesss",
     price: 18.99,
     image: "https://picsum.photos/seed/cyberdrone/800/600",
     shortDescription: "Futuristic surveillance drone with neon accents.",
