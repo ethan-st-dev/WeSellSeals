@@ -183,13 +183,19 @@ jobs:
           --name wesellseals-api \
           --resource-group WeSellSeals-Production-RG \
           --image wesellsealsacr.azurecr.io/wesellseals-api:latest \
-          --target-port 8080 \
           --set-env-vars \
             "ConnectionStrings__AzureSqlConnection=${{ secrets.AZURE_SQL_CONNECTION_STRING }}" \
             "Stripe__SecretKey=${{ secrets.STRIPE_SECRET_KEY }}" \
             "Clerk__Domain=${{ secrets.CLERK_DOMAIN }}" \
             "ASPNETCORE_ENVIRONMENT=Production" \
             "ASPNETCORE_URLS=http://+:8080"
+    
+    - name: Configure Container Apps Ingress
+      run: |
+        az containerapp ingress update \
+          --name wesellseals-api \
+          --resource-group WeSellSeals-Production-RG \
+          --target-port 8080
     
     # Run Database Migrations
     - name: Install EF Core Tools
