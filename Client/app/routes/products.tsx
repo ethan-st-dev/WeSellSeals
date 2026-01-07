@@ -3,6 +3,8 @@ import { useSearchParams, Link } from "react-router";
 import type { Route } from "./+types/products";
 import { products, categoryInfo, type ProductCategory, searchProducts, getProductsByCategory } from "../data/products";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+import { API_URL } from "../lib/apiClient";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -13,7 +15,9 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { addItem } = useCart();
+  const { addItem, isInCart } = useCart();
+  const { user, getToken } = useAuth();
+  const [ownedProducts, setOwnedProducts] = useState<Set<string>>(new Set());
   
   const categoryParam = searchParams.get("category") as ProductCategory | null;
   const searchParam = searchParams.get("search") || "";
@@ -29,6 +33,40 @@ export default function Products() {
     setSelectedCategory(categoryParam || "all");
     setSearchQuery(searchParam);
   }, [categoryParam, searchParam]);
+
+  // Check which products the user owns
+  useEffect(() => {
+    const checkOwnership = async () => {
+      if (!user) {
+        setOwnedProducts(new Set());
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        if (!token) return;
+
+        const sealIds = products.map(p => p.id);
+        const response = await fetch(`${API_URL}/api/purchases/check-multiple`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ sealIds }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setOwnedProducts(new Set(data.ownedSealIds || []));
+        }
+      } catch (error) {
+        console.error('Error checking ownership:', error);
+      }
+    };
+
+    checkOwnership();
+  }, [user, getToken]);
 
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = products;
@@ -84,6 +122,39 @@ export default function Products() {
       searchParams.set("category", category);
     }
     setSearchParams(searchParams);
+  };
+
+  const handleDownload = async (productId: string, productTitle: string) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        alert('Please log in to download');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/purchases/download/${productId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${productTitle.replace(/\s+/g, '-')}.glb`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert('Failed to download file. Please try again.');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download file. Please try again.');
+    }
   };
 
   return (
@@ -250,15 +321,33 @@ export default function Products() {
                     <div className="text-indigo-600 dark:text-indigo-400 font-semibold text-lg">
                       ${p.price.toFixed(2)}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        addItem({ id: p.id, title: p.title, price: p.price, imageSrc: p.image }, 1)
-                      }
-                      className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors text-sm font-medium"
-                    >
-                      Add to cart
-                    </button>
+                    {ownedProducts.has(p.id) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(p.id, p.title)}
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-500 transition-colors text-sm font-medium"
+                      >
+                        Download
+                      </button>
+                    ) : isInCart(p.id) ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed text-sm font-medium"
+                      >
+                        In Cart
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          addItem({ id: p.id, title: p.title, price: p.price, imageSrc: p.image })
+                        }
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors text-sm font-medium"
+                      >
+                        Add to cart
+                      </button>
+                    )}
                   </div>
                 </div>
               </article>
