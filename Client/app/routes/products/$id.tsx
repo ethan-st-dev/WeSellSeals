@@ -1,7 +1,9 @@
 import type { Route } from "./+types/$id";
 import { products } from "../../data/products";
 import { useCart } from "../../context/CartContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { API_URL } from "../../lib/apiClient";
 
 export function meta({ params }: Route.MetaArgs) {
   const product = products.find((p) => p.id === params.id);
@@ -16,10 +18,49 @@ export function meta({ params }: Route.MetaArgs) {
 
 export default function ProductDetail({ params }: Route.ComponentProps) {
   const product = products.find((p) => p.id === params.id);
-  const { addItem } = useCart();
-  const [quantity, setQuantity] = useState(1);
+  const { addItem, isInCart } = useCart();
+  const { user, getToken } = useAuth();
   const [viewMode, setViewMode] = useState<'image' | '3d'>('3d');
   const [autoRotate, setAutoRotate] = useState(true);
+  const [isOwned, setIsOwned] = useState(false);
+  const [checkingOwnership, setCheckingOwnership] = useState(true);
+
+  useEffect(() => {
+    const checkOwnership = async () => {
+      if (!user || !product) {
+        setCheckingOwnership(false);
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          setCheckingOwnership(false);
+          return;
+        }
+
+        const response = await fetch(`${API_URL}/api/purchases/check-multiple`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ sealIds: [product.id] }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setIsOwned(data.ownedSealIds?.includes(product.id) || false);
+        }
+      } catch (error) {
+        console.error('Error checking ownership:', error);
+      } finally {
+        setCheckingOwnership(false);
+      }
+    };
+
+    checkOwnership();
+  }, [user, product, getToken]);
 
   if (!product) {
     return (
@@ -41,16 +82,48 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
   }
 
   const handleAddToCart = () => {
-    addItem(
-      {
-        id: product.id,
-        title: product.title,
-        price: product.price,
-        imageSrc: product.image,
-      },
-      quantity
-    );
+    addItem({
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      imageSrc: product.image,
+    });
   };
+
+  const handleDownload = async () => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        alert('Please log in to download');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/purchases/download/${product.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${product.title.replace(/\s+/g, '-')}.glb`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert('Failed to download file. Please try again.');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download file. Please try again.');
+    }
+  };
+
+  const inCart = isInCart(product.id);
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -162,29 +235,29 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
             </div>
           )}
 
-          <div className="flex items-center gap-4">
-            <div>
-              <label
-                htmlFor="quantity"
-                className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1"
+          <div>
+            {isOwned ? (
+              <button
+                onClick={handleDownload}
+                className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-500 transition"
               >
-                Quantity
-              </label>
-              <input
-                type="number"
-                id="quantity"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-20 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-            <button
-              onClick={handleAddToCart}
-              className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-500 transition"
-            >
-              Add to Cart
-            </button>
+                Download
+              </button>
+            ) : inCart ? (
+              <button
+                disabled
+                className="w-full px-6 py-3 bg-gray-400 text-white rounded-lg font-semibold cursor-not-allowed"
+              >
+                In Cart
+              </button>
+            ) : (
+              <button
+                onClick={handleAddToCart}
+                className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-500 transition"
+              >
+                Add to Cart
+              </button>
+            )}
           </div>
 
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
