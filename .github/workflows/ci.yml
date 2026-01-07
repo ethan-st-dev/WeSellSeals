@@ -184,6 +184,7 @@ jobs:
           --set-env-vars \
             "ConnectionStrings__AzureSqlConnection=${{ secrets.AZURE_SQL_CONNECTION_STRING }}" \
             "Stripe__SecretKey=${{ secrets.STRIPE_SECRET_KEY }}" \
+            "Clerk__Domain=${{ secrets.CLERK_DOMAIN }}" \
             "ASPNETCORE_ENVIRONMENT=Production"
     
     # Run Database Migrations
@@ -208,6 +209,7 @@ jobs:
       env:
         VITE_API_URL: ${{ secrets.AZURE_API_URL }}
         VITE_STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
+        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
     
     - name: Deploy Frontend to Azure Static Web Apps
       uses: Azure/static-web-apps-deploy@v1
