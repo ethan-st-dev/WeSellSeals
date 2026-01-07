@@ -92,10 +92,20 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// Only use HTTPS redirection in development - Azure handles SSL termination
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Log startup information
+app.Logger.LogInformation("WeSellSeals API starting...");
+app.Logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
+app.Logger.LogInformation("CORS enabled for production domains");
 
 // Health check endpoint
 app.MapGet("/", () => Results.Ok(new { 

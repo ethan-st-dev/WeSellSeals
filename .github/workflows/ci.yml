@@ -183,11 +183,13 @@ jobs:
           --name wesellseals-api \
           --resource-group WeSellSeals-Production-RG \
           --image wesellsealsacr.azurecr.io/wesellseals-api:latest \
+          --target-port 8080 \
           --set-env-vars \
             "ConnectionStrings__AzureSqlConnection=${{ secrets.AZURE_SQL_CONNECTION_STRING }}" \
             "Stripe__SecretKey=${{ secrets.STRIPE_SECRET_KEY }}" \
             "Clerk__Domain=${{ secrets.CLERK_DOMAIN }}" \
-            "ASPNETCORE_ENVIRONMENT=Production"
+            "ASPNETCORE_ENVIRONMENT=Production" \
+            "ASPNETCORE_URLS=http://+:8080"
     
     # Run Database Migrations
     - name: Install EF Core Tools
@@ -219,9 +221,9 @@ jobs:
         azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         action: "upload"
-        app_location: "Client"
-        output_location: "build/client"
-        app_build_command: "echo 'Build already completed'"
+        app_location: "Client/build/client"
+        output_location: "."
+        skip_app_build: true
         skip_api_build: true
     
     - name: Logout from Azure
