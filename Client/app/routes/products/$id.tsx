@@ -18,6 +18,8 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
   const product = products.find((p) => p.id === params.id);
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
+  const [viewMode, setViewMode] = useState<'image' | '3d'>('3d');
+  const [autoRotate, setAutoRotate] = useState(true);
 
   if (!product) {
     return (
@@ -53,27 +55,60 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
   return (
     <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="grid md:grid-cols-2 gap-8">
-        {/* Image Section */}
+        {/* Image/Model Section */}
         <div className="space-y-4">
-          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-            <img
-              src={product.image}
-              alt={product.title}
-              className="w-full h-auto object-cover"
-            />
+          {/* View Toggle */}
+          <div className="flex gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('image')}
+              className={`flex-1 px-4 py-2 rounded-md font-medium transition ${
+                viewMode === 'image'
+                  ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              Image
+            </button>
+            <button
+              onClick={() => setViewMode('3d')}
+              className={`flex-1 px-4 py-2 rounded-md font-medium transition ${
+                viewMode === '3d'
+                  ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              3D Model
+            </button>
           </div>
 
-          {/* 3D Model Viewer */}
-          {product.modelUrl && (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                3D Preview
-              </h3>
-              <model-viewer
-                src={product.modelUrl}
+          {/* Content Area */}
+          {viewMode === 'image' ? (
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+              <img
+                src={product.image}
                 alt={product.title}
-                auto-rotate
+                className="w-full h-auto object-cover"
+              />
+            </div>
+          ) : (
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  3D Preview
+                </h3>
+                <button
+                  onClick={() => setAutoRotate(!autoRotate)}
+                  className="text-xs px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-800 transition"
+                >
+                  {autoRotate ? '⏸ Pause' : '▶ Rotate'}
+                </button>
+              </div>
+              <model-viewer
+                src={product.modelUrl || "https://modelviewer.dev/shared-assets/models/cube.gltf"}
+                alt={product.title}
+                auto-rotate={autoRotate}
                 camera-controls
+                interaction-prompt={autoRotate ? "none" : "auto"}
                 style={{ width: "100%", height: "400px" }}
               ></model-viewer>
             </div>
