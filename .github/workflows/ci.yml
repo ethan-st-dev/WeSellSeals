@@ -221,7 +221,7 @@ jobs:
         action: "upload"
         app_location: "./Client"
         output_location: "build/client"
-        skip_app_build: false
+        skip_app_build: true
       env:
         NODE_VERSION: '20'
         VITE_API_URL: ${{ secrets.AZURE_API_URL }}

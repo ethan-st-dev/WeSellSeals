@@ -97,6 +97,20 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Health check endpoint
+app.MapGet("/", () => Results.Ok(new { 
+    status = "ok", 
+    service = "WeSellSeals API",
+    version = "1.0.0",
+    timestamp = DateTime.UtcNow 
+}));
+
+app.MapGet("/api", () => Results.Ok(new { 
+    status = "ok", 
+    message = "WeSellSeals API is running",
+    version = "1.0.0"
+}));
+
 // Helper method to get or create user from Clerk token
 static async Task<ApplicationUser?> GetOrCreateUserFromClerk(HttpContext context, ApplicationDbContext dbContext)
 {
