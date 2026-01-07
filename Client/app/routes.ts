@@ -4,10 +4,6 @@ export default [
   index("routes/home.tsx"),
   route("/products", "routes/products.tsx"),
   route("/products/:id", "routes/products/$id.tsx"),
-  route("/seals", "routes/seals.tsx", [
-    index("routes/seals/index.tsx"),
-    route(":id", "routes/seals/$id.tsx"),
-  ]),
   route("/cart", "routes/cart.tsx"),
   route("/login", "routes/login.tsx"),
   route("/signup", "routes/signup.tsx"),

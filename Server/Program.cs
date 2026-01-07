@@ -5,11 +5,19 @@ using Microsoft.IdentityModel.Tokens;
 using Server.Data;
 using Server.Models;
 using Stripe;
+using DotNetEnv;
+
+// Load .env file if it exists (for local development)
+if (System.IO.File.Exists(".env"))
+{
+    Env.Load();
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Stripe
-StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
+// Configure Stripe - read from environment variable or appsettings
+StripeConfiguration.ApiKey = Environment.GetEnvironmentVariable("Stripe__SecretKey") 
+    ?? builder.Configuration["Stripe:SecretKey"];
 
 // Add services to the container.
 // Configure database based on environment
@@ -62,7 +70,9 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
                 "http://localhost:5173", 
+                "http://localhost:5174",
                 "https://localhost:5173",
+                "https://localhost:5174",
                 "https://wesellseals-client.azurestaticapps.net"
               )
               .AllowCredentials()

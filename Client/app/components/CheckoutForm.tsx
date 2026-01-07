@@ -4,6 +4,7 @@ import {
   useStripe,
   useElements
 } from "@stripe/react-stripe-js";
+import { useAuth } from "../context/AuthContext";
 
 interface CheckoutFormProps {
   onSuccess: () => void;
@@ -12,6 +13,7 @@ interface CheckoutFormProps {
 export default function CheckoutForm({ onSuccess }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
+  const { getToken } = useAuth();
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -42,12 +44,19 @@ export default function CheckoutForm({ onSuccess }: CheckoutFormProps) {
     } else if (paymentIntent && paymentIntent.status === 'succeeded') {
       // Payment succeeded - confirm with backend to record purchases
       try {
+        const token = await getToken();
+        if (!token) {
+          setMessage("Authentication error. Please log in again.");
+          setIsLoading(false);
+          return;
+        }
+
         const response = await fetch("http://localhost:5159/api/payments/confirm-payment", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
           },
-          credentials: "include",
           body: JSON.stringify({
             paymentIntentId: paymentIntent.id,
           }),
