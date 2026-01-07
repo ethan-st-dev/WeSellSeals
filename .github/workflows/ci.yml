@@ -223,6 +223,7 @@ jobs:
         output_location: "build/client"
         skip_app_build: false
       env:
+        NODE_VERSION: '20'
         VITE_API_URL: ${{ secrets.AZURE_API_URL }}
         VITE_STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
         VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
