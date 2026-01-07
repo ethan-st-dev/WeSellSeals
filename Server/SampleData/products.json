@@ -1,0 +1,111 @@
+{
+  "products": [
+    {
+      "title": "Harbor Seal Classic",
+      "price": 9.99,
+      "shortDescription": "A compact, adorable harbor seal figure ideal for displays.",
+      "longDescription": "This classic seal model is printed in high detail and is suitable for collectors and display use. Measures 3 inches long.",
+      "category": "seals",
+      "subcategory": "harbor",
+      "tags": "classic,small,beginner-friendly,marine",
+      "modelFile": "models/seal.glb",
+      "imageFile": "images/harbor-seal.png"
+    },
+    {
+      "title": "Playful Pup Seal",
+      "price": 12.50,
+      "shortDescription": "Energetic pose, perfect for gifts and kids.",
+      "longDescription": "Smooth, durable finish with playful pose; great as a present.",
+      "category": "seals",
+      "subcategory": "harbor",
+      "tags": "playful,gift,kids,marine",
+      "modelFile": "models/seal.glb",
+      "imageFile": "images/playful-seal.png"
+    },
+    {
+      "title": "Elephant Seal Giant",
+      "price": 32.99,
+      "shortDescription": "Massive male with distinctive trunk-like proboscis.",
+      "longDescription": "Our largest seal model featuring incredible detail of the elephant seal's distinctive features.",
+      "category": "seals",
+      "subcategory": "elephant",
+      "tags": "large,proboscis,marine,collector",
+      "modelFile": "models/seal.glb",
+      "imageFile": "images/elephant-seal.png"
+    },
+    {
+      "title": "Leopard Seal Hunter",
+      "price": 29.99,
+      "shortDescription": "Fierce predator with spotted coat pattern.",
+      "longDescription": "Detailed representation of Antarctica's top predator with realistic spotted coloring.",
+      "category": "seals",
+      "subcategory": "leopard",
+      "tags": "antarctic,predator,spotted,marine",
+      "modelFile": "models/seal.glb",
+      "imageFile": "images/leopard-seal.png"
+    },
+    {
+      "title": "Harp Seal Pup",
+      "price": 14.99,
+      "shortDescription": "Adorable whitecoat pup in resting pose.",
+      "longDescription": "Features the distinctive white fur of young harp seals. Perfect for nature enthusiasts.",
+      "category": "seals",
+      "subcategory": "harp",
+      "tags": "pup,white,arctic,cute",
+      "modelFile": "models/seal.glb",
+      "imageFile": "images/harp-seal.png"
+    },
+    {
+      "title": "Astronaut Explorer",
+      "price": 24.99,
+      "shortDescription": "Space explorer in detailed EVA suit.",
+      "longDescription": "Highly detailed astronaut figure perfect for space enthusiasts and collectors.",
+      "category": "characters",
+      "subcategory": "sci-fi",
+      "tags": "astronaut,space,explorer,hero",
+      "modelFile": "models/astronaut.glb",
+      "imageFile": "images/astronaut.png"
+    },
+    {
+      "title": "Starfighter X-Wing",
+      "price": 24.99,
+      "shortDescription": "Classic space superiority fighter with iconic design.",
+      "longDescription": "Detailed model of the legendary starfighter, perfect for sci-fi collections.",
+      "category": "sci-fi",
+      "subcategory": "spacecraft",
+      "tags": "spaceship,fighter,detailed,iconic",
+      "modelFile": "models/seal.glb",
+      "imageFile": "images/xwing.png"
+    },
+    {
+      "title": "Cyberpunk Drone",
+      "price": 18.99,
+      "shortDescription": "Futuristic surveillance drone with neon accents.",
+      "longDescription": "Sleek cyberpunk-styled drone with LED-style detailing.",
+      "category": "sci-fi",
+      "subcategory": "drones",
+      "tags": "cyberpunk,futuristic,neon,tech",
+      "imageFile": "images/cyber-drone.png"
+    },
+    {
+      "title": "Pirate Ship Black Pearl",
+      "price": 45.99,
+      "shortDescription": "Legendary ghost ship with tattered sails.",
+      "longDescription": "Highly detailed pirate galleon with intricate rigging and weathered hull.",
+      "category": "pirates",
+      "subcategory": "ships",
+      "tags": "ship,legendary,detailed,caribbean",
+      "imageFile": "images/pirate-ship.png"
+    },
+    {
+      "title": "Dragon Hatchling",
+      "price": 19.99,
+      "shortDescription": "Young dragon emerging from egg.",
+      "longDescription": "Adorable baby dragon with detailed scales and translucent wings.",
+      "category": "fantasy",
+      "subcategory": "creatures",
+      "tags": "dragon,cute,mythical,detailed",
+      "imageFile": "images/dragon.png"
+    }
+  ]
+}

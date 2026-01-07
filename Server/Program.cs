@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Server.Data;
 using Server.Models;
+using Server.Services;
 using Stripe;
 using DotNetEnv;
 
@@ -82,6 +83,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Register BlobStorageService
+builder.Services.AddSingleton<IBlobStorageService, BlobStorageService>();
+
 builder.Services.AddAuthorization();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -93,7 +97,14 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var blobStorage = scope.ServiceProvider.GetRequiredService<IBlobStorageService>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<DatabaseSeeder>>();
+    
     dbContext.Database.EnsureCreated();
+    
+    // Seed products from sample data
+    var seeder = new DatabaseSeeder(dbContext, blobStorage, logger);
+    await seeder.SeedAsync();
 }
 
 // Configure the HTTP request pipeline.
@@ -565,6 +576,126 @@ app.MapPost("/api/purchases/check-multiple", async (
         .ToListAsync();
     
     return Results.Ok(new { ownedSealIds });
+});
+
+// ============================================
+// PRODUCT ENDPOINTS
+// ============================================
+
+// Get all products
+app.MapGet("/api/products", async (ApplicationDbContext dbContext) =>
+{
+    var products = await dbContext.Products.ToListAsync();
+    return Results.Ok(products);
+});
+
+// Get product by ID
+app.MapGet("/api/products/{id}", async (string id, ApplicationDbContext dbContext) =>
+{
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    return Results.Ok(product);
+});
+
+// Get products by category
+app.MapGet("/api/products/category/{category}", async (string category, ApplicationDbContext dbContext) =>
+{
+    var products = await dbContext.Products
+        .Where(p => p.Category == category)
+        .ToListAsync();
+    return Results.Ok(products);
+});
+
+// Create a new product (Admin only - you can add authorization later)
+app.MapPost("/api/products", async (Server.Models.Product product, ApplicationDbContext dbContext) =>
+{
+    product.Id = Guid.NewGuid().ToString();
+    product.CreatedAt = DateTime.UtcNow;
+    product.UpdatedAt = DateTime.UtcNow;
+    
+    dbContext.Products.Add(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Created($"/api/products/{product.Id}", product);
+});
+
+// Update a product (Admin only - you can add authorization later)
+app.MapPut("/api/products/{id}", async (string id, Server.Models.Product updatedProduct, ApplicationDbContext dbContext) =>
+{
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    product.Title = updatedProduct.Title;
+    product.Price = updatedProduct.Price;
+    product.Image = updatedProduct.Image;
+    product.ShortDescription = updatedProduct.ShortDescription;
+    product.LongDescription = updatedProduct.LongDescription;
+    product.ModelUrl = updatedProduct.ModelUrl;
+    product.Category = updatedProduct.Category;
+    product.Subcategory = updatedProduct.Subcategory;
+    product.Tags = updatedProduct.Tags;
+    product.UpdatedAt = DateTime.UtcNow;
+    
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Ok(product);
+});
+
+// Delete a product (Admin only - you can add authorization later)
+app.MapDelete("/api/products/{id}", async (string id, ApplicationDbContext dbContext) =>
+{
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    dbContext.Products.Remove(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Ok(new { message = "Product deleted successfully" });
+});
+
+// Upload file endpoint (for development - serves local files)
+app.MapGet("/api/files/{filename}", async (string filename, IBlobStorageService blobStorage) =>
+{
+    try
+    {
+        var stream = await blobStorage.DownloadFileAsync($"/api/files/{filename}");
+        var contentType = filename.EndsWith(".glb") ? "model/gltf-binary" : 
+                         filename.EndsWith(".png") ? "image/png" :
+                         filename.EndsWith(".jpg") || filename.EndsWith(".jpeg") ? "image/jpeg" :
+                         "application/octet-stream";
+        
+        return Results.Stream(stream, contentType);
+    }
+    catch (FileNotFoundException)
+    {
+        return Results.NotFound();
+    }
+});
+
+// Upload file endpoint (for adding new products with files)
+app.MapPost("/api/upload", async (HttpRequest request, IBlobStorageService blobStorage) =>
+{
+    if (!request.HasFormContentType || request.Form.Files.Count == 0)
+    {
+        return Results.BadRequest(new { message = "No file uploaded" });
+    }
+    
+    var file = request.Form.Files[0];
+    var fileName = $"{Guid.NewGuid()}_{file.FileName}";
+    
+    using var stream = file.OpenReadStream();
+    var url = await blobStorage.UploadFileAsync(stream, fileName, file.ContentType ?? "application/octet-stream");
+    
+    return Results.Ok(new { url, fileName });
 });
 
 var summaries = new[]

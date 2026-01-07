@@ -34,3 +34,93 @@ export async function apiClient(endpoint: string, options: FetchOptions = {}) {
 }
 
 export { API_URL };
+
+// Product API methods
+export interface Product {
+  id: string;
+  title: string;
+  price: number;
+  image: string;
+  shortDescription: string;
+  longDescription?: string;
+  modelUrl?: string;
+  category: string;
+  subcategory?: string;
+  tags: string; // JSON string array
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getProducts(): Promise<Product[]> {
+  const response = await apiClient('/api/products');
+  if (!response.ok) {
+    throw new Error('Failed to fetch products');
+  }
+  return response.json();
+}
+
+export async function getProductById(id: string): Promise<Product> {
+  const response = await apiClient(`/api/products/${id}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch product');
+  }
+  return response.json();
+}
+
+export async function getProductsByCategory(category: string): Promise<Product[]> {
+  const response = await apiClient(`/api/products/category/${category}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch products by category');
+  }
+  return response.json();
+}
+
+export async function createProduct(product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, token?: string): Promise<Product> {
+  const response = await apiClient('/api/products', {
+    method: 'POST',
+    body: JSON.stringify(product),
+    token,
+  });
+  if (!response.ok) {
+    throw new Error('Failed to create product');
+  }
+  return response.json();
+}
+
+export async function updateProduct(id: string, product: Partial<Product>, token?: string): Promise<Product> {
+  const response = await apiClient(`/api/products/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(product),
+    token,
+  });
+  if (!response.ok) {
+    throw new Error('Failed to update product');
+  }
+  return response.json();
+}
+
+export async function deleteProduct(id: string, token?: string): Promise<void> {
+  const response = await apiClient(`/api/products/${id}`, {
+    method: 'DELETE',
+    token,
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete product');
+  }
+}
+
+export async function uploadFile(file: File): Promise<{ url: string; fileName: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await fetch(`${API_URL}/api/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to upload file');
+  }
+  
+  return response.json();
+}

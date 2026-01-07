@@ -1,10 +1,32 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams, Link } from "react-router";
 import type { Route } from "./+types/products";
-import { products, categoryInfo, type ProductCategory, searchProducts, getProductsByCategory } from "../data/products";
+import { categoryInfo, type ProductCategory } from "../data/products";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
-import { API_URL } from "../lib/apiClient";
+import { API_URL, getProducts, type Product as APIProduct } from "../lib/apiClient";
+
+// Convert API Product to local Product type
+type Product = {
+  id: string;
+  title: string;
+  price: number;
+  image: string;
+  shortDescription: string;
+  longDescription?: string;
+  modelUrl?: string;
+  category: ProductCategory;
+  subcategory?: string;
+  tags: string[];
+};
+
+function convertAPIProduct(apiProduct: APIProduct): Product {
+  return {
+    ...apiProduct,
+    category: apiProduct.category as ProductCategory,
+    tags: JSON.parse(apiProduct.tags || '[]'),
+  };
+}
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -18,6 +40,9 @@ export default function Products() {
   const { addItem, isInCart } = useCart();
   const { user, getToken } = useAuth();
   const [ownedProducts, setOwnedProducts] = useState<Set<string>>(new Set());
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   const categoryParam = searchParams.get("category") as ProductCategory | null;
   const searchParam = searchParams.get("search") || "";
@@ -28,6 +53,25 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState(searchParam);
   const [sortBy, setSortBy] = useState<"name" | "price-low" | "price-high">("name");
 
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const apiProducts = await getProducts();
+        setProducts(apiProducts.map(convertAPIProduct));
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching products:', err);
+        setError('Failed to load products');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   // Sync state with URL parameters when they change
   useEffect(() => {
     setSelectedCategory(categoryParam || "all");
@@ -37,7 +81,7 @@ export default function Products() {
   // Check which products the user owns
   useEffect(() => {
     const checkOwnership = async () => {
-      if (!user) {
+      if (!user || products.length === 0) {
         setOwnedProducts(new Set());
         return;
       }
@@ -66,14 +110,14 @@ export default function Products() {
     };
 
     checkOwnership();
-  }, [user, getToken]);
+  }, [user, getToken, products]);
 
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = products;
 
     // Filter by category
     if (selectedCategory !== "all") {
-      filtered = getProductsByCategory(selectedCategory);
+      filtered = products.filter(p => p.category === selectedCategory);
     }
 
     // Filter by search query
@@ -104,7 +148,7 @@ export default function Products() {
     }
 
     return sorted;
-  }, [searchQuery, selectedCategory, sortBy]);
+  }, [products, searchQuery, selectedCategory, sortBy]);
 
   const categoryCount = useMemo(() => {
     const counts: Record<string, number> = { all: products.length };
@@ -156,6 +200,33 @@ export default function Products() {
       alert('Failed to download file. Please try again.');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading products...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

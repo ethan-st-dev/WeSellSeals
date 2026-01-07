@@ -1,7 +1,29 @@
+import { useState, useEffect } from "react";
 import type { Route } from "./+types/home";
 import ProductCard from "../components/ProductCard";
-import { products, categoryInfo, getProductsByCategory } from "../data/products";
+import { categoryInfo } from "../data/products";
 import { Link } from "react-router";
+import { getProducts, type Product as APIProduct } from "../lib/apiClient";
+
+type Product = {
+  id: string;
+  title: string;
+  price: number;
+  image: string;
+  shortDescription: string;
+  longDescription?: string;
+  modelUrl?: string;
+  category: string;
+  subcategory?: string;
+  tags: string[];
+};
+
+function convertAPIProduct(apiProduct: APIProduct): Product {
+  return {
+    ...apiProduct,
+    tags: JSON.parse(apiProduct.tags || '[]'),
+  };
+}
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -11,6 +33,28 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const apiProducts = await getProducts();
+        setProducts(apiProducts.map(convertAPIProduct));
+      } catch (err) {
+        console.error('Error fetching products:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  const getProductsByCategory = (category: string) => {
+    return products.filter(p => p.category === category);
+  };
+
   // Get featured products from each category (2 from each)
   const featuredSeals = getProductsByCategory("seals").slice(0, 2);
   const featuredSciFi = getProductsByCategory("sci-fi").slice(0, 2);
@@ -18,6 +62,17 @@ export default function Home() {
   const featuredFantasy = getProductsByCategory("fantasy").slice(0, 2);
   const featuredVehicles = getProductsByCategory("vehicles").slice(0, 2);
   const featuredAnimals = getProductsByCategory("animals").slice(0, 2);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">

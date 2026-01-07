@@ -12,6 +12,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     }
     
     public DbSet<Purchase> Purchases { get; set; }
+    public DbSet<Product> Products { get; set; }
     
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
