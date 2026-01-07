@@ -1,6 +1,12 @@
 // API client helper for making authenticated requests to the backend
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5159';
+// Prefer configured URL, fall back to known production host when running on Azure, and finally local dev.
+const DEFAULT_PROD_API = "https://wesellseals-api.azurecontainerapps.io";
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined" && window.location.hostname.endsWith("azurestaticapps.net")
+    ? DEFAULT_PROD_API
+    : "http://localhost:5159")
+).replace(/\/$/, "");
 
 interface FetchOptions extends RequestInit {
   token?: string | null;

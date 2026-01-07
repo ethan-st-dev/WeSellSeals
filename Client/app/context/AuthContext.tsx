@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { useUser, useClerk, useSession } from '@clerk/clerk-react';
+import { API_URL } from '../lib/apiClient';
 
 interface User {
   email: string;
@@ -71,8 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!token) return;
       
       // Check which seals the user already owns
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5159';
-      const response = await fetch(`${apiUrl}/api/purchases/check-multiple`, {
+      const response = await fetch(`${API_URL}/api/purchases/check-multiple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
