@@ -1,29 +1,48 @@
 import type { Route } from "./+types/$id";
-import { products } from "../../data/products";
+import { getProduct, type Product } from "../../data/products";
 import { useCart } from "../../context/CartContext";
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { API_URL } from "../../lib/apiClient";
 
 export function meta({ params }: Route.MetaArgs) {
-  const product = products.find((p) => p.id === params.id);
-  if (!product) {
-    return [{ title: "Product Not Found" }];
-  }
   return [
-    { title: `${product.title} — WeSellSeals` },
-    { name: "description", content: product.shortDescription },
+    { title: "Product Details — WeSellSeals" },
+    { name: "description", content: "View product details" },
   ];
 }
 
 export default function ProductDetail({ params }: Route.ComponentProps) {
-  const product = products.find((p) => p.id === params.id);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const { addItem, isInCart } = useCart();
   const { user, getToken } = useAuth();
   const [viewMode, setViewMode] = useState<'image' | '3d'>('3d');
   const [autoRotate, setAutoRotate] = useState(true);
   const [isOwned, setIsOwned] = useState(false);
   const [checkingOwnership, setCheckingOwnership] = useState(true);
+  
+  // Fetch product
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        const data = await getProduct(params.id);
+        if (data) {
+          setProduct(data);
+        } else {
+          setNotFound(true);
+        }
+      } catch (error) {
+        console.error('Failed to load product:', error);
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProduct();
+  }, [params.id]);
 
   useEffect(() => {
     const checkOwnership = async () => {
@@ -61,8 +80,16 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
 
     checkOwnership();
   }, [user, product, getToken]);
-
-  if (!product) {
+  
+  if (loading) {
+    return (
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="text-gray-600 dark:text-gray-400">Loading product...</div>
+      </div>
+    );
+  }
+  
+  if (notFound || !product) {
     return (
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">

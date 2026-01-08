@@ -1,207 +1,165 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { 
-  products, 
-  categoryInfo, 
-  getProductsByCategory, 
-  searchProducts 
+  getProducts,
+  getProduct,
+  getProductsByCategory,
+  searchProducts,
+  categories,
+  type Product 
 } from './products';
 
+// Mock the apiClient
+vi.mock('~/lib/apiClient', () => ({
+  apiClient: vi.fn(),
+  API_URL: 'http://localhost:5159'
+}));
+
+import { apiClient } from '~/lib/apiClient';
+
 describe('Products Data', () => {
-  describe('products array', () => {
-    it('contains products', () => {
-      expect(products.length).toBeGreaterThan(0);
-    });
+  const mockProducts: Product[] = [
+    {
+      id: 'seal-1',
+      title: 'Harbor Seal Classic',
+      price: 9.99,
+      image: '/seal-logo2.png',
+      shortDescription: 'A compact, adorable harbor seal figure.',
+      category: 'seals',
+      tags: ['classic', 'small', 'marine']
+    },
+    {
+      id: 'robot-1',
+      title: 'Futuristic Android',
+      price: 34.99,
+      image: 'https://picsum.photos/seed/android/800/600',
+      shortDescription: 'A sleek android figure.',
+      category: 'sci-fi',
+      tags: ['robot', 'futuristic']
+    },
+  ];
 
-    it('all products have required fields', () => {
-      products.forEach(product => {
-        expect(product).toHaveProperty('id');
-        expect(product).toHaveProperty('title');
-        expect(product).toHaveProperty('price');
-        expect(product).toHaveProperty('image');
-        expect(product).toHaveProperty('shortDescription');
-        expect(product).toHaveProperty('category');
-        expect(product).toHaveProperty('tags');
-        
-        expect(typeof product.id).toBe('string');
-        expect(typeof product.title).toBe('string');
-        expect(typeof product.price).toBe('number');
-        expect(Array.isArray(product.tags)).toBe(true);
-      });
-    });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    it('all products have valid categories', () => {
-      const validCategories = Object.keys(categoryInfo);
+  describe('getProducts', () => {
+    it('fetches and normalizes products from API', async () => {
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockProducts)
+      };
+      (apiClient as any).mockResolvedValue(mockResponse);
+
+      const products = await getProducts();
       
-      products.forEach(product => {
-        expect(validCategories).toContain(product.category);
-      });
+      expect(apiClient).toHaveBeenCalledWith('/api/products');
+      expect(products).toHaveLength(2);
+      expect(products[0].id).toBe('seal-1');
     });
 
-    it('all product IDs are unique', () => {
-      const ids = products.map(p => p.id);
-      const uniqueIds = new Set(ids);
-      
-      expect(uniqueIds.size).toBe(ids.length);
-    });
+    it('throws error if API call fails', async () => {
+      const mockResponse = { ok: false };
+      (apiClient as any).mockResolvedValue(mockResponse);
 
-    it('all products have positive prices', () => {
-      products.forEach(product => {
-        expect(product.price).toBeGreaterThan(0);
-      });
+      await expect(getProducts()).rejects.toThrow('Failed to fetch products');
     });
   });
 
-  describe('categoryInfo', () => {
-    it('contains all expected categories', () => {
-      const expectedCategories = [
-        'seals', 'sci-fi', 'pirates', 'fantasy', 
-        'vehicles', 'architecture', 'animals', 'characters'
-      ];
+  describe('getProduct', () => {
+    it('fetches single product by ID', async () => {
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockProducts[0])
+      };
+      (apiClient as any).mockResolvedValue(mockResponse);
+
+      const product = await getProduct('seal-1');
       
-      expectedCategories.forEach(category => {
-        expect(categoryInfo).toHaveProperty(category);
-      });
+      expect(apiClient).toHaveBeenCalledWith('/api/products/seal-1');
+      expect(product?.id).toBe('seal-1');
+      expect(product?.title).toBe('Harbor Seal Classic');
     });
 
-    it('all categories have required info', () => {
-      Object.values(categoryInfo).forEach(info => {
-        expect(info).toHaveProperty('name');
-        expect(info).toHaveProperty('description');
-        expect(info).toHaveProperty('icon');
-        
-        expect(typeof info.name).toBe('string');
-        expect(typeof info.description).toBe('string');
-        expect(typeof info.icon).toBe('string');
-      });
+    it('returns null for 404', async () => {
+      const mockResponse = { ok: false, status: 404 };
+      (apiClient as any).mockResolvedValue(mockResponse);
+
+      const product = await getProduct('nonexistent');
+      
+      expect(product).toBeNull();
     });
   });
 
   describe('getProductsByCategory', () => {
-    it('returns products for seals category', () => {
-      const seals = getProductsByCategory('seals');
-      
-      expect(seals.length).toBeGreaterThan(0);
-      seals.forEach(product => {
-        expect(product.category).toBe('seals');
-      });
-    });
+    it('fetches products by category', async () => {
+      const sealsOnly = [mockProducts[0]];
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue(sealsOnly)
+      };
+      (apiClient as any).mockResolvedValue(mockResponse);
 
-    it('returns products for sci-fi category', () => {
-      const scifi = getProductsByCategory('sci-fi');
+      const products = await getProductsByCategory('seals');
       
-      expect(scifi.length).toBeGreaterThan(0);
-      scifi.forEach(product => {
-        expect(product.category).toBe('sci-fi');
-      });
-    });
-
-    it('returns empty array for category with no products', () => {
-      // This should not happen with current data, but tests the function
-      const result = getProductsByCategory('nonexistent' as any);
-      expect(Array.isArray(result)).toBe(true);
-    });
-
-    it('returns different products for different categories', () => {
-      const seals = getProductsByCategory('seals');
-      const pirates = getProductsByCategory('pirates');
-      
-      const sealsIds = seals.map(p => p.id);
-      const piratesIds = pirates.map(p => p.id);
-      
-      // No overlap between categories
-      const overlap = sealsIds.filter(id => piratesIds.includes(id));
-      expect(overlap.length).toBe(0);
+      expect(apiClient).toHaveBeenCalledWith('/api/products/category/seals');
+      expect(products).toHaveLength(1);
+      expect(products[0].category).toBe('seals');
     });
   });
 
   describe('searchProducts', () => {
-    it('finds products by title', () => {
-      const results = searchProducts('seal');
-      
-      expect(results.length).toBeGreaterThan(0);
-      results.forEach(product => {
-        const matchesTitle = product.title.toLowerCase().includes('seal');
-        const matchesDescription = product.shortDescription.toLowerCase().includes('seal');
-        const matchesTags = product.tags.some(tag => tag.toLowerCase().includes('seal'));
-        
-        expect(matchesTitle || matchesDescription || matchesTags).toBe(true);
-      });
+    it('returns all products when no query or category', () => {
+      const result = searchProducts(mockProducts, '', undefined);
+      expect(result).toEqual(mockProducts);
     });
 
-    it('finds products by description', () => {
-      const results = searchProducts('detailed');
-      
-      expect(results.length).toBeGreaterThan(0);
+    it('filters by category', () => {
+      const result = searchProducts(mockProducts, '', 'seals');
+      expect(result).toHaveLength(1);
+      expect(result[0].category).toBe('seals');
     });
 
-    it('finds products by tags', () => {
-      const results = searchProducts('collector');
-      
-      expect(results.length).toBeGreaterThan(0);
-      results.forEach(product => {
-        const matchesTags = product.tags.some(tag => 
-          tag.toLowerCase().includes('collector')
-        );
-        expect(matchesTags).toBe(true);
-      });
+    it('filters by search query in title', () => {
+      const result = searchProducts(mockProducts, 'android', undefined);
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toContain('Android');
     });
 
-    it('is case insensitive', () => {
-      const lowerResults = searchProducts('dragon');
-      const upperResults = searchProducts('DRAGON');
-      const mixedResults = searchProducts('DrAgOn');
-      
-      expect(lowerResults.length).toBe(upperResults.length);
-      expect(lowerResults.length).toBe(mixedResults.length);
+    it('filters by search query in tags', () => {
+      const result = searchProducts(mockProducts, 'marine', undefined);
+      expect(result).toHaveLength(1);
+      expect(result[0].tags).toContain('marine');
     });
 
-    it('returns empty array when no matches', () => {
-      const results = searchProducts('xyznonexistentproduct123');
-      
-      expect(Array.isArray(results)).toBe(true);
-      expect(results.length).toBe(0);
+    it('combines category and search query', () => {
+      const result = searchProducts(mockProducts, 'classic', 'seals');
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('seal-1');
     });
 
-    it('can search within a specific category', () => {
-      const results = searchProducts('seal', 'seals');
-      
-      expect(results.length).toBeGreaterThan(0);
-      results.forEach(product => {
-        expect(product.category).toBe('seals');
-      });
-    });
-
-    it('filters by category when provided', () => {
-      const allSpaceResults = searchProducts('space');
-      const scifiSpaceResults = searchProducts('space', 'sci-fi');
-      
-      scifiSpaceResults.forEach(product => {
-        expect(product.category).toBe('sci-fi');
-      });
-      
-      expect(scifiSpaceResults.length).toBeLessThanOrEqual(allSpaceResults.length);
+    it('is case-insensitive', () => {
+      const result = searchProducts(mockProducts, 'ANDROID', undefined);
+      expect(result).toHaveLength(1);
     });
   });
 
-  describe('product distribution', () => {
-    it('has products in each category', () => {
-      const categories = Object.keys(categoryInfo);
-      
-      categories.forEach(category => {
-        const categoryProducts = getProductsByCategory(category as any);
-        expect(categoryProducts.length).toBeGreaterThan(0);
-      });
+  describe('categories metadata', () => {
+    it('contains all expected categories', () => {
+      expect(categories).toHaveProperty('seals');
+      expect(categories).toHaveProperty('sci-fi');
+      expect(categories).toHaveProperty('pirates');
+      expect(categories).toHaveProperty('fantasy');
+      expect(categories).toHaveProperty('vehicles');
+      expect(categories).toHaveProperty('architecture');
+      expect(categories).toHaveProperty('animals');
+      expect(categories).toHaveProperty('characters');
     });
 
-    it('has a reasonable distribution of products', () => {
-      const categories = Object.keys(categoryInfo);
-      const counts = categories.map(cat => 
-        getProductsByCategory(cat as any).length
-      );
-      
-      // Each category should have at least 2 products
-      counts.forEach(count => {
-        expect(count).toBeGreaterThanOrEqual(2);
+    it('each category has required fields', () => {
+      Object.values(categories).forEach(category => {
+        expect(category).toHaveProperty('name');
+        expect(category).toHaveProperty('description');
+        expect(category).toHaveProperty('icon');
       });
     });
   });

@@ -94,6 +94,12 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     dbContext.Database.EnsureCreated();
+    
+    // Seed data in non-production environments
+    if (!app.Environment.IsProduction())
+    {
+        Server.Data.SeedData.Initialize(dbContext);
+    }
 }
 
 // Configure the HTTP request pipeline.
@@ -566,6 +572,129 @@ app.MapPost("/api/purchases/check-multiple", async (
     
     return Results.Ok(new { ownedSealIds });
 });
+
+// ===== PRODUCT ENDPOINTS =====
+
+// Get all products
+app.MapGet("/api/products", async (ApplicationDbContext dbContext) =>
+{
+    var products = await dbContext.Products
+        .OrderByDescending(p => p.CreatedAt)
+        .ToListAsync();
+    
+    return Results.Ok(products);
+});
+
+// Get product by ID
+app.MapGet("/api/products/{id}", async (string id, ApplicationDbContext dbContext) =>
+{
+    var product = await dbContext.Products.FindAsync(id);
+    
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    return Results.Ok(product);
+});
+
+// Get products by category
+app.MapGet("/api/products/category/{category}", async (string category, ApplicationDbContext dbContext) =>
+{
+    var products = await dbContext.Products
+        .Where(p => p.Category == category)
+        .OrderByDescending(p => p.CreatedAt)
+        .ToListAsync();
+    
+    return Results.Ok(products);
+});
+
+// Create new product (requires authentication)
+app.MapPost("/api/products", async (
+    Server.Models.Product product,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    // Validate product
+    if (string.IsNullOrEmpty(product.Title) || product.Price <= 0)
+    {
+        return Results.BadRequest(new { message = "Invalid product data" });
+    }
+    
+    product.Id = Guid.NewGuid().ToString();
+    product.CreatedAt = DateTime.UtcNow;
+    
+    dbContext.Products.Add(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Created($"/api/products/{product.Id}", product);
+}).RequireAuthorization();
+
+// Update product (requires authentication)
+app.MapPut("/api/products/{id}", async (
+    string id,
+    Server.Models.Product updatedProduct,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    // Update fields
+    product.Title = updatedProduct.Title;
+    product.Price = updatedProduct.Price;
+    product.Image = updatedProduct.Image;
+    product.ShortDescription = updatedProduct.ShortDescription;
+    product.LongDescription = updatedProduct.LongDescription;
+    product.ModelUrl = updatedProduct.ModelUrl;
+    product.Category = updatedProduct.Category;
+    product.Subcategory = updatedProduct.Subcategory;
+    product.Tags = updatedProduct.Tags;
+    product.UpdatedAt = DateTime.UtcNow;
+    
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Ok(product);
+}).RequireAuthorization();
+
+// Delete product (requires authentication)
+app.MapDelete("/api/products/{id}", async (
+    string id,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    dbContext.Products.Remove(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.NoContent();
+}).RequireAuthorization();
 
 var summaries = new[]
 {

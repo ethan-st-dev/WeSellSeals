@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams, Link } from "react-router";
 import type { Route } from "./+types/products";
-import { products, categoryInfo, type ProductCategory, searchProducts, getProductsByCategory } from "../data/products";
+import { getProducts, categories, type ProductCategory, type Product } from "../data/products";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { API_URL } from "../lib/apiClient";
@@ -14,6 +14,8 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Products() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const { addItem, isInCart } = useCart();
   const { user, getToken } = useAuth();
@@ -27,6 +29,22 @@ export default function Products() {
   );
   const [searchQuery, setSearchQuery] = useState(searchParam);
   const [sortBy, setSortBy] = useState<"name" | "price-low" | "price-high">("name");
+  
+  // Fetch products on mount
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const data = await getProducts();
+        setProducts(data);
+      } catch (error) {
+        console.error('Failed to load products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProducts();
+  }, []);
 
   // Sync state with URL parameters when they change
   useEffect(() => {
@@ -73,18 +91,22 @@ export default function Products() {
 
     // Filter by category
     if (selectedCategory !== "all") {
-      filtered = getProductsByCategory(selectedCategory);
+      filtered = products.filter(p => p.category === selectedCategory);
     }
 
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (product) =>
-          product.title.toLowerCase().includes(query) ||
-          product.shortDescription.toLowerCase().includes(query) ||
-          product.tags.some((tag) => tag.toLowerCase().includes(query)) ||
-          (product.subcategory && product.subcategory.toLowerCase().includes(query))
+        (product) => {
+          const tags = Array.isArray(product.tags) ? product.tags : [];
+          return (
+            product.title.toLowerCase().includes(query) ||
+            product.shortDescription.toLowerCase().includes(query) ||
+            tags.some((tag) => tag.toLowerCase().includes(query)) ||
+            (product.subcategory && product.subcategory.toLowerCase().includes(query))
+          );
+        }
       );
     }
 
@@ -165,7 +187,7 @@ export default function Products() {
           Browse 3D Models
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Discover {products.length} unique 3D printable models across {Object.keys(categoryInfo).length} categories
+          Discover {products.length} unique 3D printable models across {Object.keys(categories).length} categories
         </p>
       </div>
 
@@ -207,7 +229,7 @@ export default function Products() {
         >
           All Products ({categoryCount.all})
         </button>
-        {Object.entries(categoryInfo).map(([key, { name, icon }]) => (
+        {Object.entries(categories).map(([key, { name, icon }]) => (
           <button
             key={key}
             onClick={() => handleCategoryChange(key as ProductCategory)}
@@ -227,7 +249,7 @@ export default function Products() {
       {selectedCategory !== "all" && (
         <div className="max-w-3xl mx-auto text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
           <p className="text-gray-700 dark:text-gray-300">
-            {categoryInfo[selectedCategory].description}
+            {categories[selectedCategory].description}
           </p>
         </div>
       )}
@@ -297,8 +319,8 @@ export default function Products() {
                       </h2>
                     </Link>
                     <span className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full whitespace-nowrap flex items-center gap-1">
-                      <span>{categoryInfo[p.category].icon}</span>
-                      {categoryInfo[p.category].name}
+                      <span>{categories[p.category].icon}</span>
+                      {categories[p.category].name}
                     </span>
                   </div>
 

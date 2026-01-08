@@ -1,7 +1,8 @@
 import type { Route } from "./+types/home";
 import ProductCard from "../components/ProductCard";
-import { products, categoryInfo, getProductsByCategory } from "../data/products";
+import { getProducts, categories, type Product, type ProductCategory } from "../data/products";
 import { Link } from "react-router";
+import { useState, useEffect } from "react";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -11,13 +12,70 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
+  const [productsByCategory, setProductsByCategory] = useState<Record<ProductCategory, Product[]>>({
+    seals: [],
+    "sci-fi": [],
+    pirates: [],
+    fantasy: [],
+    vehicles: [],
+    architecture: [],
+    animals: [],
+    characters: [],
+  });
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const products = await getProducts();
+        
+        // Group products by category
+        const grouped: Record<ProductCategory, Product[]> = {
+          seals: [],
+          "sci-fi": [],
+          pirates: [],
+          fantasy: [],
+          vehicles: [],
+          architecture: [],
+          animals: [],
+          characters: [],
+        };
+        
+        products.forEach(product => {
+          if (product.category in grouped) {
+            grouped[product.category as ProductCategory].push(product);
+          }
+        });
+        
+        setProductsByCategory(grouped);
+      } catch (error) {
+        console.error('Failed to load products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProducts();
+  }, []);
+  
+  if (loading) {
+    return (
+      <main className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="text-gray-600 dark:text-gray-400">Loading products...</div>
+      </main>
+    );
+  }
+  
   // Get featured products from each category (2 from each)
-  const featuredSeals = getProductsByCategory("seals").slice(0, 2);
-  const featuredSciFi = getProductsByCategory("sci-fi").slice(0, 2);
-  const featuredPirates = getProductsByCategory("pirates").slice(0, 2);
-  const featuredFantasy = getProductsByCategory("fantasy").slice(0, 2);
-  const featuredVehicles = getProductsByCategory("vehicles").slice(0, 2);
-  const featuredAnimals = getProductsByCategory("animals").slice(0, 2);
+  const featuredSeals = productsByCategory.seals.slice(0, 2);
+  const featuredSciFi = productsByCategory["sci-fi"].slice(0, 2);
+  const featuredPirates = productsByCategory.pirates.slice(0, 2);
+  const featuredFantasy = productsByCategory.fantasy.slice(0, 2);
+  const featuredVehicles = productsByCategory.vehicles.slice(0, 2);
+  const featuredAnimals = productsByCategory.animals.slice(0, 2);
+  
+  // Calculate total products
+  const totalProducts = Object.values(productsByCategory).reduce((sum, arr) => sum + arr.length, 0);
 
   return (
     <main className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
@@ -57,7 +115,7 @@ export default function Home() {
           Explore Our Categories
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Object.entries(categoryInfo).map(([key, { name, description, icon }]) => (
+          {Object.entries(categories).map(([key, { name, description, icon }]) => (
             <Link
               key={key}
               to={`/products?category=${key}`}
@@ -196,7 +254,7 @@ export default function Home() {
             Discover More Amazing Models
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            Explore {products.length}+ unique 3D printable designs
+            Explore {totalProducts}+ unique 3D printable designs
           </p>
           <Link
             to="/products"

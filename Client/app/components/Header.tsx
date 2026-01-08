@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { UserButton, SignedIn, SignedOut } from "@clerk/clerk-react";
-import { categoryInfo, type ProductCategory } from "../data/products";
+import { categories, type ProductCategory } from "../data/products";
 
 export default function Header() {
   const { state } = useCart();
@@ -112,7 +112,7 @@ export default function Header() {
                       <div className="text-xs text-gray-500 dark:text-gray-400">Browse everything</div>
                     </Link>
                     <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
-                    {Object.entries(categoryInfo).map(([key, { name, description, icon }]) => (
+                    {Object.entries(categories).map(([key, { name, description, icon }]) => (
                       <Link
                         key={key}
                         to={`/products?category=${key}`}
