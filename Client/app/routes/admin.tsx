@@ -3,6 +3,7 @@ import type { Route } from "./+types/admin";
 import { createProduct, type ProductCategory } from "../data/products";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router";
+import { API_URL } from "../lib/apiClient";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -17,6 +18,7 @@ export default function AdminAddProduct() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -37,6 +39,48 @@ export default function AdminAddProduct() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    fieldName: "image" | "modelUrl"
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingFile(fieldName);
+      setError(null);
+
+      const token = await getToken();
+      if (!token) {
+        setError("Failed to get authentication token");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`${API_URL}/api/admin/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Upload failed");
+      }
+
+      const data = await response.json();
+      setFormData((prev) => ({ ...prev, [fieldName]: data.url }));
+    } catch (err: any) {
+      setError(err.message || "Failed to upload file");
+    } finally {
+      setUploadingFile(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -44,6 +88,12 @@ export default function AdminAddProduct() {
 
     if (!user) {
       setError("You must be logged in to add products");
+      return;
+    }
+
+    // Validate required image upload
+    if (!formData.image) {
+      setError("Please upload a product image");
       return;
     }
 
@@ -211,33 +261,42 @@ export default function AdminAddProduct() {
 
         <div>
           <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Image URL *
+            Product Image *
           </label>
           <input
-            type="url"
+            type="file"
             id="image"
-            name="image"
-            required
-            value={formData.image}
-            onChange={handleChange}
-            placeholder="https://example.com/image.jpg"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500"
+            accept=".jpg,.jpeg,.png,.webp"
+            onChange={(e) => handleFileUpload(e, "image")}
+            disabled={uploadingFile === "image"}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
           />
+          {uploadingFile === "image" && (
+            <p className="text-sm text-indigo-600 mt-1">Uploading...</p>
+          )}
+          {formData.image && (
+            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ Image uploaded</p>
+          )}
         </div>
 
         <div>
           <label htmlFor="modelUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            3D Model URL (GLB)
+            3D Model (GLB)
           </label>
           <input
-            type="url"
+            type="file"
             id="modelUrl"
-            name="modelUrl"
-            value={formData.modelUrl}
-            onChange={handleChange}
-            placeholder="https://example.com/model.glb"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500"
+            accept=".glb"
+            onChange={(e) => handleFileUpload(e, "modelUrl")}
+            disabled={uploadingFile === "modelUrl"}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
           />
+          {uploadingFile === "modelUrl" && (
+            <p className="text-sm text-indigo-600 mt-1">Uploading...</p>
+          )}
+          {formData.modelUrl && (
+            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ Model uploaded</p>
+          )}
         </div>
 
         <div>

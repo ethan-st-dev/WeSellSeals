@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Server.Data;
 using Server.Models;
+using Server.Services;
 using Stripe;
 using DotNetEnv;
 
@@ -84,6 +85,19 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddAuthorization();
 
+// Add antiforgery services (required for .DisableAntiforgery())
+builder.Services.AddAntiforgery();
+
+// Configure File Storage Service based on environment
+if (builder.Environment.IsProduction())
+{
+    builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
+}
+else
+{
+    builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+}
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -112,6 +126,35 @@ if (app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
+}
+
+// Serve static files from uploads directory for local development
+if (!app.Environment.IsProduction())
+{
+    var uploadsPath = builder.Configuration["FileStorage:LocalPath"] ?? "uploads";
+    if (!Directory.Exists(uploadsPath))
+    {
+        Directory.CreateDirectory(uploadsPath);
+    }
+    // Configure MIME types
+    var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+    provider.Mappings[".glb"] = "model/gltf-binary";
+    provider.Mappings[".gltf"] = "model/gltf+json";
+    
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+            Path.Combine(Directory.GetCurrentDirectory(), uploadsPath)),
+        RequestPath = "/uploads",
+        ContentTypeProvider = provider,
+        OnPrepareResponse = ctx =>
+        {
+            // Add CORS headers for model-viewer and other 3D tools
+            ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+            ctx.Context.Response.Headers.Append("Access-Control-Allow-Methods", "GET");
+            ctx.Context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type");
+        }
+    });
 }
 
 app.UseCors();
@@ -574,6 +617,63 @@ app.MapPost("/api/purchases/check-multiple", async (
 });
 
 // ===== PRODUCT ENDPOINTS =====
+
+// Upload file (GLB model or image) - requires authentication
+app.MapPost("/api/admin/upload", async (
+    HttpRequest request,
+    HttpContext context,
+    ApplicationDbContext dbContext,
+    IFileStorageService fileStorageService) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    if (!request.HasFormContentType || request.Form.Files.Count == 0)
+    {
+        return Results.BadRequest(new { message = "No file uploaded" });
+    }
+    
+    var file = request.Form.Files[0];
+    
+    // Validate file type (allow GLB and common image formats)
+    var allowedExtensions = new[] { ".glb", ".jpg", ".jpeg", ".png", ".webp" };
+    var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+    
+    if (!allowedExtensions.Contains(fileExtension))
+    {
+        return Results.BadRequest(new { message = "Invalid file type. Allowed types: .glb, .jpg, .jpeg, .png, .webp" });
+    }
+    
+    // Validate file size (max 50MB)
+    if (file.Length > 50 * 1024 * 1024)
+    {
+        return Results.BadRequest(new { message = "File size exceeds 50MB limit" });
+    }
+    
+    try
+    {
+        using var stream = file.OpenReadStream();
+        var fileUrl = await fileStorageService.UploadFileAsync(stream, file.FileName, file.ContentType);
+        
+        return Results.Ok(new { url = fileUrl, fileName = file.FileName });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: 500,
+            title: "File Upload Error"
+        );
+    }
+})
+.RequireAuthorization()
+.DisableAntiforgery(); // Required for file uploads
+
+// Allow OPTIONS for CORS preflight
+app.MapMethods("/api/admin/upload", new[] { "OPTIONS" }, () => Results.Ok());
 
 // Get all products
 app.MapGet("/api/products", async (ApplicationDbContext dbContext) =>

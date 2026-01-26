@@ -1,6 +1,7 @@
 # .NET
 Server/bin/
 Server/obj/
+Server/uploads/
 Server/appsettings.json
 Server/appsettings.Production.json
 *.db

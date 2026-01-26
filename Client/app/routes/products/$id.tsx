@@ -203,14 +203,24 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
                   {autoRotate ? '⏸ Pause' : '▶ Rotate'}
                 </button>
               </div>
-              <model-viewer
-                src={product.modelUrl || "https://modelviewer.dev/shared-assets/models/cube.gltf"}
-                alt={product.title}
-                auto-rotate={autoRotate}
-                camera-controls
-                interaction-prompt={autoRotate ? "none" : "auto"}
-                style={{ width: "100%", height: "400px" }}
-              ></model-viewer>
+              {product.modelUrl ? (
+                <model-viewer
+                  src={product.modelUrl}
+                  alt={product.title}
+                  auto-rotate={autoRotate}
+                  camera-controls
+                  interaction-prompt={autoRotate ? "none" : "auto"}
+                  loading="eager"
+                  reveal="auto"
+                  style={{ width: "100%", height: "400px", backgroundColor: "#f0f0f0", display: "block" }}
+                  onError={(e: any) => console.error('Model viewer error:', e)}
+                  onLoad={() => console.log('Model loaded successfully from:', product.modelUrl)}
+                ></model-viewer>
+              ) : (
+                <div className="flex items-center justify-center h-[400px] bg-gray-200 dark:bg-gray-700 rounded">
+                  <p className="text-gray-500 dark:text-gray-400">No 3D model available</p>
+                </div>
+              )}
             </div>
           )}
         </div>
