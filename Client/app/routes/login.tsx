@@ -16,8 +16,7 @@ export default function Login() {
           Sign in to We Sell Seals
         </h2>
         <SignIn 
-          routing="path"
-          path="/login"
+          routing="hash"
           signUpUrl="/signup"
           afterSignInUrl="/"
           appearance={{
