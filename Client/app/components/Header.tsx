@@ -28,13 +28,13 @@ export default function Header() {
           <div className="flex items-center gap-6">
             <a
               href="/"
-              className="inline-flex items-center gap-3"
+              className="inline-flex items-center"
               aria-label="WeSellSeals home"
             >
-              {/* Use the provided seal image placed in public/seal-logo2.png */}
+              {/* Use the provided seal image placed in public/WeSellSealsLogo.png */}
               <img
-                src="/seal-logo2.png"
-                className="h-20 w-20 object-contain bg-transparent"
+                src="/WeSellSeals.png"
+                className="h-22 w-22 object-contain bg-transparent mt-3"
                 alt="WeSellSeals logo"
               />
 
