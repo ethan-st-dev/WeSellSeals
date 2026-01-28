@@ -162,6 +162,8 @@ if (!app.Environment.IsProduction())
     });
 }
 
+app.UseCors();
+
 // Handle OPTIONS requests explicitly for CORS preflight
 app.Use(async (context, next) =>
 {
@@ -173,8 +175,6 @@ app.Use(async (context, next) =>
     }
     await next();
 });
-
-app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
