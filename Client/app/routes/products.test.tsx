@@ -98,10 +98,14 @@ describe('Products Page', () => {
     });
   });
 
-  it('displays results count', () => {
+  it('displays results count', async () => {
     renderProducts();
     
-    expect(screen.getByText(/model.*found/i)).toBeInTheDocument();
+    await waitFor(() => {
+      // Look for either "X models found" or "X model found" (singular)
+      const resultText = screen.getAllByText(/\d+\s*model/i);
+      expect(resultText.length).toBeGreaterThan(0);
+    });
   });
 
   it('shows category description when category is selected', async () => {
@@ -146,11 +150,21 @@ describe('Products Page', () => {
   });
 
   it('renders product cards with add to cart buttons', async () => {
+    const user = userEvent.setup();
     renderProducts();
+    
+    // Click "All Products" to show all items
+    await waitFor(() => {
+      const allProductsButton = screen.getByRole('button', { name: /all products/i });
+      expect(allProductsButton).toBeInTheDocument();
+    });
+    
+    const allProductsButton = screen.getByRole('button', { name: /all products/i });
+    await user.click(allProductsButton);
     
     await waitFor(() => {
       const addToCartButtons = screen.getAllByRole('button', { name: /add to cart/i });
       expect(addToCartButtons.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 3000 });
   });
 });

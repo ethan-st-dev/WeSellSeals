@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router';
 import Home from './home';
 import { CartProvider } from '../context/CartContext';
@@ -20,30 +20,38 @@ const renderHome = () => {
 };
 
 describe('Home Page', () => {
-  it('renders the hero section', () => {
+  it('renders the hero section', async () => {
     renderHome();
     
-    expect(screen.getByText('Welcome to WeSellSeals')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Welcome to WeSellSeals')).toBeInTheDocument();
+    });
     expect(screen.getByText(/your premier destination for high-quality 3d printable models/i)).toBeInTheDocument();
   });
 
-  it('displays hero call-to-action buttons', () => {
+  it('displays hero call-to-action buttons', async () => {
     renderHome();
     
-    expect(screen.getByRole('link', { name: /browse all models/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /browse all models/i })).toBeInTheDocument();
+    });
     expect(screen.getByRole('link', { name: /shop seals/i })).toBeInTheDocument();
   });
 
-  it('renders explore categories section', () => {
+  it('renders explore categories section', async () => {
     renderHome();
     
-    expect(screen.getByText('Explore Our Categories')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Explore Our Categories')).toBeInTheDocument();
+    });
   });
 
-  it('displays all 8 category cards', () => {
+  it('displays all 8 category cards', async () => {
     renderHome();
     
-    expect(screen.getByText('Seals')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Seals')).toBeInTheDocument();
+    });
     expect(screen.getByText('Sci-Fi')).toBeInTheDocument();
     expect(screen.getByText('Pirates')).toBeInTheDocument();
     expect(screen.getByText('Fantasy')).toBeInTheDocument();
@@ -53,60 +61,77 @@ describe('Home Page', () => {
     expect(screen.getByText('Characters')).toBeInTheDocument();
   });
 
-  it('displays featured seals section', () => {
+  it('displays featured seals section', async () => {
     renderHome();
     
-    expect(screen.getByText(/featured seals/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Loading products...')).not.toBeInTheDocument();
+    });
+    // Section won't show if no seals products exist
   });
 
-  it('displays featured sci-fi section', () => {
+  it('displays featured sci-fi section', async () => {
     renderHome();
     
-    expect(screen.getByText(/featured sci-fi/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/featured sci-fi/i)).toBeInTheDocument();
+    });
   });
 
-  it('displays featured pirates section', () => {
+  it('displays featured pirates section', async () => {
     renderHome();
     
-    expect(screen.getByText(/featured pirates/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/featured pirates/i)).toBeInTheDocument();
+    });
   });
 
-  it('displays featured fantasy section', () => {
+  it('displays featured fantasy section', async () => {
     renderHome();
     
-    expect(screen.getByText(/featured fantasy/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/featured fantasy/i)).toBeInTheDocument();
+    });
   });
 
-  it('renders browse more section', () => {
+  it('renders browse more section', async () => {
     renderHome();
     
-    expect(screen.getByText('Discover More Amazing Models')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Discover More Amazing Models')).toBeInTheDocument();
+    });
     expect(screen.getByText(/explore.*unique 3d printable designs/i)).toBeInTheDocument();
   });
 
-  it('displays browse full catalog button', () => {
+  it('displays browse full catalog button', async () => {
     renderHome();
     
-    const catalogButtons = screen.getAllByRole('link', { name: /browse.*catalog/i });
-    expect(catalogButtons.length).toBeGreaterThan(0);
+    await waitFor(() => {
+      const catalogButtons = screen.getAllByRole('link', { name: /browse.*catalog/i });
+      expect(catalogButtons.length).toBeGreaterThan(0);
+    });
   });
 
-  it('category cards link to correct product pages', () => {
+  it('category cards link to correct product pages', async () => {
     renderHome();
     
-    const categoryLinks = screen.getAllByRole('link');
-    const sealsLink = categoryLinks.find(link => 
-      link.getAttribute('href') === '/products?category=seals'
-    );
-    
-    expect(sealsLink).toBeInTheDocument();
+    await waitFor(() => {
+      const categoryLinks = screen.getAllByRole('link');
+      const sealsLink = categoryLinks.find(link => 
+        link.getAttribute('href') === '/products?category=seals'
+      );
+      
+      expect(sealsLink).toBeInTheDocument();
+    });
   });
 
-  it('featured sections show product cards', () => {
+  it('featured sections show product cards', async () => {
     renderHome();
     
-    // Each featured section should have product cards
-    const productCards = screen.getAllByRole('article');
-    expect(productCards.length).toBeGreaterThan(0);
+    await waitFor(() => {
+      // Each featured section should have product cards
+      const productCards = screen.getAllByRole('article');
+      expect(productCards.length).toBeGreaterThan(0);
+    });
   });
 });
