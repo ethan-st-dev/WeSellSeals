@@ -7,6 +7,7 @@ import { CartProvider } from '../context/CartContext';
 import * as AuthContext from '../context/AuthContext';
 
 // Mock the auth context
+//mock
 vi.mock('../context/AuthContext', () => ({
   useAuth: vi.fn(),
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
