@@ -162,12 +162,13 @@ if (!app.Environment.IsProduction())
     });
 }
 
+app.UseRouting();
 app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Add global OPTIONS handler for all routes AFTER UseCors but BEFORE endpoint mapping
+// Add global OPTIONS handler for all routes AFTER UseCors but BEFORE UseEndpoints
 app.Use(async (context, next) =>
 {
     if (context.Request.Method == "OPTIONS")
