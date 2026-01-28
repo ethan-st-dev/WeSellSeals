@@ -19,7 +19,7 @@
     "apiRuntime": "node:20"
   },
   "globalHeaders": {
-    "content-security-policy": "default-src 'self' https://*.clerk.accounts.dev https://*.stripe.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.clerk.accounts.dev https://*.stripe.com https://*.azurecontainerapps.io",
+    "content-security-policy": "default-src 'self' https://*.clerk.accounts.dev https://*.stripe.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://*.clerk.accounts.dev https://*.stripe.com https://*.azurecontainerapps.io; worker-src 'self' blob:",
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff"
   }

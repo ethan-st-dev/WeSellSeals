@@ -80,6 +80,7 @@ builder.Services.AddCors(options =>
               .AllowCredentials()
               .AllowAnyHeader()
               .AllowAnyMethod()
+              .WithExposedHeaders("*")
               .SetIsOriginAllowedToAllowWildcardSubdomains();
     });
 });
@@ -162,6 +163,7 @@ if (!app.Environment.IsProduction())
 }
 
 app.UseCors();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
