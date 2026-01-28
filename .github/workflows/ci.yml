@@ -205,9 +205,16 @@ jobs:
       run: dotnet restore
       working-directory: ./Server
     
+    - name: Build Server for Migrations
+      run: dotnet build --configuration Release --no-restore
+      working-directory: ./Server
+      env:
+        ASPNETCORE_ENVIRONMENT: Production
+        ConnectionStrings__AzureSqlConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+    
     - name: Run Database Migrations
-      run: |
-        dotnet ef database update --project ./Server
+      run: dotnet ef database update
+      working-directory: ./Server
       env:
         ASPNETCORE_ENVIRONMENT: Production
         ConnectionStrings__AzureSqlConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
