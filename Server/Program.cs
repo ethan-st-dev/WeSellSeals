@@ -74,7 +74,8 @@ builder.Services.AddCors(options =>
                 "http://localhost:5174",
                 "https://localhost:5173",
                 "https://localhost:5174",
-                "https://wesellseals-client.azurestaticapps.net"
+                "https://wesellseals-client.azurestaticapps.net",
+                "https://brave-beach-02c856b1e.4.azurestaticapps.net"
               )
               .AllowCredentials()
               .AllowAnyHeader()
