@@ -677,6 +677,34 @@ app.MapPost("/api/admin/upload", async (
 // Allow OPTIONS for CORS preflight
 app.MapMethods("/api/admin/upload", new[] { "OPTIONS" }, () => Results.Ok());
 
+// Proxy blob files to avoid CORS issues
+app.MapGet("/api/files/{*blobPath}", async (string blobPath, IFileStorageService fileStorageService) =>
+{
+    try
+    {
+        // For Azure Blob Storage, we need to fetch the file and stream it
+        if (fileStorageService is AzureBlobStorageService azureService)
+        {
+            var containerClient = azureService.GetContainerClient();
+            var blobClient = containerClient.GetBlobClient(blobPath);
+            
+            if (await blobClient.ExistsAsync())
+            {
+                var download = await blobClient.DownloadAsync();
+                var contentType = download.Value.Details.ContentType;
+                
+                return Results.Stream(download.Value.Content, contentType);
+            }
+            return Results.NotFound();
+        }
+        return Results.NotFound();
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+});
+
 // Get all products
 app.MapGet("/api/products", async (ApplicationDbContext dbContext) =>
 {

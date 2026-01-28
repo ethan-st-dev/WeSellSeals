@@ -8,10 +8,12 @@ public class AzureBlobStorageService : IFileStorageService
     private readonly BlobContainerClient _containerClient;
     private readonly ILogger<AzureBlobStorageService> _logger;
     private readonly string _containerName;
+    private readonly IConfiguration _configuration;
 
     public AzureBlobStorageService(IConfiguration configuration, ILogger<AzureBlobStorageService> logger)
     {
         _logger = logger;
+        _configuration = configuration;
         var connectionString = configuration["FileStorage:AzureBlobConnectionString"]
             ?? throw new InvalidOperationException("Azure Blob Storage connection string is not configured");
         
@@ -44,7 +46,10 @@ public class AzureBlobStorageService : IFileStorageService
             });
 
             _logger.LogInformation("File uploaded to Azure Blob Storage: {FileName}", uniqueFileName);
-            return blobClient.Uri.ToString();
+            
+            // Return server proxy URL instead of direct Azurite URL
+            var baseUrl = _configuration["FileStorage:BaseUrl"] ?? "http://localhost:5159";
+            return $"{baseUrl}/api/files/{uniqueFileName}";
         }
         catch (Exception ex)
         {
@@ -78,7 +83,12 @@ public class AzureBlobStorageService : IFileStorageService
 
     public string GetFileUrl(string fileName)
     {
-        var blobClient = _containerClient.GetBlobClient(fileName);
-        return blobClient.Uri.ToString();
+        var baseUrl = _configuration["FileStorage:BaseUrl"] ?? "http://localhost:5159";
+        return $"{baseUrl}/api/files/{fileName}";
+    }
+    
+    public BlobContainerClient GetContainerClient()
+    {
+        return _containerClient;
     }
 }
