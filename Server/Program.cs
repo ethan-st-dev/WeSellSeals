@@ -127,23 +127,6 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// Handle OPTIONS requests explicitly for CORS preflight - MUST be before routing
-app.Use(async (context, next) =>
-{
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.StatusCode = 200;
-        context.Response.Headers.Append("Access-Control-Allow-Origin", 
-            context.Request.Headers["Origin"].ToString());
-        context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        context.Response.Headers.Append("Access-Control-Allow-Headers", "Authorization, Content-Type");
-        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
-        await context.Response.CompleteAsync();
-        return;
-    }
-    await next();
-});
-
 // Only use HTTPS redirection in development - Azure handles SSL termination
 if (app.Environment.IsDevelopment())
 {
@@ -183,6 +166,18 @@ app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Add global OPTIONS handler for all routes AFTER UseCors but BEFORE endpoint mapping
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        await context.Response.CompleteAsync();
+        return;
+    }
+    await next();
+});
 
 // Log startup information
 app.Logger.LogInformation("WeSellSeals API starting...");
@@ -694,9 +689,6 @@ app.MapPost("/api/admin/upload", async (
 })
 .RequireAuthorization()
 .DisableAntiforgery(); // Required for file uploads
-
-// Allow OPTIONS for CORS preflight
-app.MapMethods("/api/admin/upload", new[] { "OPTIONS" }, () => Results.Ok());
 
 // Proxy blob files to avoid CORS issues
 app.MapGet("/api/files/{*blobPath}", async (string blobPath, IFileStorageService fileStorageService) =>
