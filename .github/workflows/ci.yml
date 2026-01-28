@@ -215,7 +215,7 @@ jobs:
           --start-ip-address ${{ steps.ip.outputs.runner_ip }} \
           --end-ip-address ${{ steps.ip.outputs.runner_ip }}
         echo "Waiting 10 seconds for firewall rule to propagate..."
-        sleep 10
+        sleep 30
     
     - name: Install EF Core Tools
       run: dotnet tool install --global dotnet-ef
