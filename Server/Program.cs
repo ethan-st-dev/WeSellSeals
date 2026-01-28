@@ -39,12 +39,12 @@ else if (builder.Environment.IsProduction())
 }
 else
 {
-    // Development: Use SQLite
+    // Development: Use local SQL Server (Docker)
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? "Data Source=wesellseals.db";
+        ?? "Server=localhost,1433;Database=wesellseals_dev;User ID=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;";
     
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlite(connectionString));
+        options.UseSqlServer(connectionString));
 }
 
 // Configure Clerk JWT Authentication

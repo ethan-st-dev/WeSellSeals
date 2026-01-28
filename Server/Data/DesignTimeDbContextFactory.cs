@@ -14,17 +14,13 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Applicatio
         
         if (!string.IsNullOrEmpty(connectionString))
         {
+            // Use SQL Server for Azure or CI/CD
             optionsBuilder.UseSqlServer(connectionString);
-        }
-        else if (args.Length > 0)
-        {
-            // Fallback: connection string passed via command line args
-            optionsBuilder.UseSqlServer(args[0]);
         }
         else
         {
-            // Default to SQLite for local development migrations
-            optionsBuilder.UseSqlite("Data Source=wesellseals.db");
+            // Default to local SQL Server for development migrations
+            optionsBuilder.UseSqlServer("Server=localhost,1433;Database=wesellseals_dev;User ID=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;");
         }
         
         return new ApplicationDbContext(optionsBuilder.Options);

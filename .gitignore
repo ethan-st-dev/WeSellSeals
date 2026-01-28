@@ -8,6 +8,9 @@ Server/appsettings.Production.json
 *.db-shm
 *.db-wal
 
+# SQL Server Docker data
+Server/sqlserver-data/
+
 # Rider
 .idea/
 
