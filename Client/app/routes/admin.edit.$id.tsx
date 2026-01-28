@@ -1,20 +1,21 @@
-import { useState } from "react";
-import type { Route } from "./+types/admin";
-import { createProduct, type ProductCategory } from "../data/products";
+import { useState, useEffect } from "react";
+import type { Route } from "./+types/admin.edit.$id";
+import { getProduct, updateProduct, type ProductCategory, type Product } from "../data/products";
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import { API_URL } from "../lib/apiClient";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Admin - Add Product — WeSellSeals" },
-    { name: "description", content: "Add a new product to the store" },
+    { title: "Admin - Edit Product — WeSellSeals" },
+    { name: "description", content: "Edit product details" },
   ];
 }
 
-export default function AdminAddProduct() {
+export default function AdminEditProduct({ params }: Route.ComponentProps) {
   const { user, getToken } = useAuth();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -31,6 +32,44 @@ export default function AdminAddProduct() {
     subcategory: "",
     tags: "",
   });
+
+  useEffect(() => {
+    fetchProduct();
+  }, [params.id]);
+
+  const fetchProduct = async () => {
+    try {
+      setLoading(true);
+      const product = await getProduct(params.id);
+      if (!product) {
+        setError("Product not found");
+        return;
+      }
+
+      // Convert tags array to comma-separated string
+      const tagsString = Array.isArray(product.tags) 
+        ? product.tags.join(", ") 
+        : typeof product.tags === 'string' 
+        ? product.tags 
+        : "";
+
+      setFormData({
+        title: product.title,
+        price: product.price.toString(),
+        image: product.image,
+        shortDescription: product.shortDescription,
+        longDescription: product.longDescription || "",
+        modelUrl: product.modelUrl || "",
+        category: product.category,
+        subcategory: product.subcategory || "",
+        tags: tagsString,
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to load product");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -87,11 +126,10 @@ export default function AdminAddProduct() {
     setSuccess(false);
 
     if (!user) {
-      setError("You must be logged in to add products");
+      setError("You must be logged in to edit products");
       return;
     }
 
-    // Validate required image upload
     if (!formData.image) {
       setError("Please upload a product image");
       return;
@@ -105,13 +143,13 @@ export default function AdminAddProduct() {
         return;
       }
 
-      // Parse tags from comma-separated string
       const tagsArray = formData.tags
         .split(",")
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0);
 
-      const newProduct = await createProduct(
+      await updateProduct(
+        params.id,
         {
           title: formData.title,
           price: parseFloat(formData.price),
@@ -128,25 +166,11 @@ export default function AdminAddProduct() {
 
       setSuccess(true);
       
-      // Reset form
-      setFormData({
-        title: "",
-        price: "",
-        image: "",
-        shortDescription: "",
-        longDescription: "",
-        modelUrl: "",
-        category: "seals",
-        subcategory: "",
-        tags: "",
-      });
-
-      // Redirect to the new product page after a short delay
       setTimeout(() => {
-        navigate(`/products/${newProduct.id}`);
+        navigate(`/admin`);
       }, 1500);
     } catch (err: any) {
-      setError(err.message || "Failed to create product");
+      setError(err.message || "Failed to update product");
     } finally {
       setIsSubmitting(false);
     }
@@ -171,11 +195,45 @@ export default function AdminAddProduct() {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600 dark:text-gray-400">Loading product...</p>
+      </div>
+    );
+  }
+
+  if (error && !formData.title) {
+    return (
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+          Error
+        </h1>
+        <p className="text-red-600 dark:text-red-400 mb-8">{error}</p>
+        <Link
+          to="/admin"
+          className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500"
+        >
+          Back to Admin
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
-        Add New Product
-      </h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+          Edit Product
+        </h1>
+        <Link
+          to="/admin"
+          className="text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          ← Back to Products
+        </Link>
+      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-200">
@@ -185,7 +243,7 @@ export default function AdminAddProduct() {
 
       {success && (
         <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-800 dark:text-green-200">
-          Product created successfully! Redirecting...
+          Product updated successfully! Redirecting...
         </div>
       )}
 
@@ -263,6 +321,12 @@ export default function AdminAddProduct() {
           <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Product Image *
           </label>
+          {formData.image && (
+            <div className="mb-2">
+              <img src={formData.image} alt="Current" className="h-32 w-32 object-cover rounded" />
+              <p className="text-sm text-gray-500 mt-1">Current image (upload new to replace)</p>
+            </div>
+          )}
           <input
             type="file"
             id="image"
@@ -274,15 +338,15 @@ export default function AdminAddProduct() {
           {uploadingFile === "image" && (
             <p className="text-sm text-indigo-600 mt-1">Uploading...</p>
           )}
-          {formData.image && (
-            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ Image uploaded</p>
-          )}
         </div>
 
         <div>
           <label htmlFor="modelUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             3D Model (GLB)
           </label>
+          {formData.modelUrl && (
+            <p className="text-sm text-green-600 dark:text-green-400 mb-2">✓ Current model (upload new to replace)</p>
+          )}
           <input
             type="file"
             id="modelUrl"
@@ -293,9 +357,6 @@ export default function AdminAddProduct() {
           />
           {uploadingFile === "modelUrl" && (
             <p className="text-sm text-indigo-600 mt-1">Uploading...</p>
-          )}
-          {formData.modelUrl && (
-            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ Model uploaded</p>
           )}
         </div>
 
@@ -352,15 +413,14 @@ export default function AdminAddProduct() {
             disabled={isSubmitting}
             className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
           >
-            {isSubmitting ? "Creating..." : "Create Product"}
+            {isSubmitting ? "Updating..." : "Update Product"}
           </button>
-          <button
-            type="button"
-            onClick={() => navigate("/products")}
-            className="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+          <Link
+            to="/admin"
+            className="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition text-center"
           >
             Cancel
-          </button>
+          </Link>
         </div>
       </form>
     </main>

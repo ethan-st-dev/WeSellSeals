@@ -111,11 +111,11 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     dbContext.Database.EnsureCreated();
     
-    // Seed data in non-production environments
-    if (!app.Environment.IsProduction())
-    {
-        Server.Data.SeedData.Initialize(dbContext);
-    }
+    // Seed data disabled - use admin panel to manage products
+    // if (!app.Environment.IsProduction())
+    // {
+    //     Server.Data.SeedData.Initialize(dbContext);
+    // }
 }
 
 // Configure the HTTP request pipeline.

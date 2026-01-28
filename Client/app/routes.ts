@@ -9,5 +9,7 @@ export default [
   route("/signup", "routes/signup.tsx"),
   route("/user", "routes/user.tsx"), 
   route("/checkout", "routes/checkout.tsx"),
-  route("/admin", "routes/admin.tsx"),
+  route("/admin", "routes/admin._index.tsx"),
+  route("/admin/add", "routes/admin.add.tsx"),
+  route("/admin/edit/:id", "routes/admin.edit.$id.tsx"),
 ] satisfies RouteConfig;
