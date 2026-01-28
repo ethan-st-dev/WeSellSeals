@@ -11,6 +11,9 @@ Server/appsettings.Production.json
 # SQL Server Docker data
 Server/sqlserver-data/
 
+# Azurite data
+Server/azurite-data/
+
 # Rider
 .idea/
 

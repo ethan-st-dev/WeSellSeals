@@ -91,11 +91,13 @@ builder.Services.AddAntiforgery();
 // Configure File Storage Service based on environment
 if (builder.Environment.IsProduction())
 {
+    // Production: Use Azure Blob Storage
     builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
 }
 else
 {
-    builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+    // Development: Use Azurite (local Azure emulator)
+    builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
 }
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

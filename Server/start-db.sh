@@ -40,12 +40,26 @@ until docker exec wesellseals-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localho
 done
 
 echo "✅ SQL Server is ready!"
+
+# Check Azurite
+if docker ps | grep -q wesellseals-azurite; then
+    echo "✅ Azurite (Blob Storage) is ready!"
+else
+    echo "⚠️  Azurite is not running"
+fi
+
 echo ""
 echo "📊 Connection Details:"
+echo ""
+echo "🗄️  SQL Server:"
 echo "   Server: localhost,1433"
 echo "   Database: wesellseals_dev"
 echo "   User: sa"
 echo "   Password: YourStrong@Passw0rd"
+echo ""
+echo "📦 Azurite (Blob Storage):"
+echo "   Blob Endpoint: http://localhost:10000/devstoreaccount1"
+echo "   Container: seal-models"
 echo ""
 echo "🔧 Running database migrations..."
 if dotnet ef database update; then
