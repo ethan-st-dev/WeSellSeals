@@ -201,12 +201,16 @@ jobs:
     - name: Install EF Core Tools
       run: dotnet tool install --global dotnet-ef
     
+    - name: Restore Dependencies for Migrations
+      run: dotnet restore
+      working-directory: ./Server
+    
     - name: Run Database Migrations
       run: |
         dotnet ef database update --project ./Server
       env:
         ASPNETCORE_ENVIRONMENT: Production
-        AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+        ConnectionStrings__AzureSqlConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
     
     # Build and Deploy Frontend
     - name: Install Frontend Dependencies
