@@ -12,6 +12,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     }
     
     public DbSet<Purchase> Purchases { get; set; }
+    public DbSet<Models.Product> Products { get; set; }
     
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -23,6 +24,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(p => p.UserId);
             
         modelBuilder.Entity<Purchase>()
+            .Property(p => p.Price)
+            .HasPrecision(18, 2);
+            
+        modelBuilder.Entity<Models.Product>()
             .Property(p => p.Price)
             .HasPrecision(18, 2);
     }

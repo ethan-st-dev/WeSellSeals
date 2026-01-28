@@ -1,11 +1,21 @@
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Data Source=app.db"
+    "DefaultConnection": "Data Source=app.db",
+    "AzureSqlConnection": "Server=tcp:yourserver.database.windows.net,1433;Initial Catalog=yourdb;..."
   },
   "Stripe": {
     "SecretKey": "sk_test_YOUR_SECRET_KEY_HERE",
     "PublishableKey": "pk_test_YOUR_PUBLISHABLE_KEY_HERE",
     "WebhookSecret": "whsec_YOUR_WEBHOOK_SECRET_HERE"
+  },
+  "Clerk": {
+    "Domain": "your-app.clerk.accounts.dev"
+  },
+  "FileStorage": {
+    "LocalPath": "uploads",
+    "BaseUrl": "http://localhost:5000",
+    "AzureBlobConnectionString": "DefaultEndpointsProtocol=https;AccountName=youraccountname;AccountKey=youraccountkey;EndpointSuffix=core.windows.net",
+    "ContainerName": "models"
   },
   "Logging": {
     "LogLevel": {

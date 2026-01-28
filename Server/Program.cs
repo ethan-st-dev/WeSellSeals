@@ -4,12 +4,21 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Server.Data;
 using Server.Models;
+using Server.Services;
 using Stripe;
+using DotNetEnv;
+
+// Load .env file if it exists (for local development)
+if (System.IO.File.Exists(".env"))
+{
+    Env.Load();
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Stripe
-StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
+// Configure Stripe - read from environment variable or appsettings
+StripeConfiguration.ApiKey = Environment.GetEnvironmentVariable("Stripe__SecretKey") 
+    ?? builder.Configuration["Stripe:SecretKey"];
 
 // Add services to the container.
 // Configure database based on environment
@@ -30,12 +39,12 @@ else if (builder.Environment.IsProduction())
 }
 else
 {
-    // Development: Use SQLite
+    // Development: Use local SQL Server (Docker)
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? "Data Source=wesellseals.db";
+        ?? "Server=localhost,1433;Database=wesellseals_dev;User ID=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;";
     
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlite(connectionString));
+        options.UseSqlServer(connectionString));
 }
 
 // Configure Clerk JWT Authentication
@@ -62,7 +71,9 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
                 "http://localhost:5173", 
+                "http://localhost:5174",
                 "https://localhost:5173",
+                "https://localhost:5174",
                 "https://wesellseals-client.azurestaticapps.net"
               )
               .AllowCredentials()
@@ -74,6 +85,21 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddAuthorization();
 
+// Add antiforgery services (required for .DisableAntiforgery())
+builder.Services.AddAntiforgery();
+
+// Configure File Storage Service based on environment
+if (builder.Environment.IsProduction())
+{
+    // Production: Use Azure Blob Storage
+    builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
+}
+else
+{
+    // Development: Use Azurite (local Azure emulator)
+    builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
+}
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -84,6 +110,12 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     dbContext.Database.EnsureCreated();
+    
+    // Seed data disabled - use admin panel to manage products
+    // if (!app.Environment.IsProduction())
+    // {
+    //     Server.Data.SeedData.Initialize(dbContext);
+    // }
 }
 
 // Configure the HTTP request pipeline.
@@ -96,6 +128,35 @@ if (app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
+}
+
+// Serve static files from uploads directory for local development
+if (!app.Environment.IsProduction())
+{
+    var uploadsPath = builder.Configuration["FileStorage:LocalPath"] ?? "uploads";
+    if (!Directory.Exists(uploadsPath))
+    {
+        Directory.CreateDirectory(uploadsPath);
+    }
+    // Configure MIME types
+    var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+    provider.Mappings[".glb"] = "model/gltf-binary";
+    provider.Mappings[".gltf"] = "model/gltf+json";
+    
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+            Path.Combine(Directory.GetCurrentDirectory(), uploadsPath)),
+        RequestPath = "/uploads",
+        ContentTypeProvider = provider,
+        OnPrepareResponse = ctx =>
+        {
+            // Add CORS headers for model-viewer and other 3D tools
+            ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+            ctx.Context.Response.Headers.Append("Access-Control-Allow-Methods", "GET");
+            ctx.Context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type");
+        }
+    });
 }
 
 app.UseCors();
@@ -556,6 +617,214 @@ app.MapPost("/api/purchases/check-multiple", async (
     
     return Results.Ok(new { ownedSealIds });
 });
+
+// ===== PRODUCT ENDPOINTS =====
+
+// Upload file (GLB model or image) - requires authentication
+app.MapPost("/api/admin/upload", async (
+    HttpRequest request,
+    HttpContext context,
+    ApplicationDbContext dbContext,
+    IFileStorageService fileStorageService) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    if (!request.HasFormContentType || request.Form.Files.Count == 0)
+    {
+        return Results.BadRequest(new { message = "No file uploaded" });
+    }
+    
+    var file = request.Form.Files[0];
+    
+    // Validate file type (allow GLB and common image formats)
+    var allowedExtensions = new[] { ".glb", ".jpg", ".jpeg", ".png", ".webp" };
+    var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+    
+    if (!allowedExtensions.Contains(fileExtension))
+    {
+        return Results.BadRequest(new { message = "Invalid file type. Allowed types: .glb, .jpg, .jpeg, .png, .webp" });
+    }
+    
+    // Validate file size (max 50MB)
+    if (file.Length > 50 * 1024 * 1024)
+    {
+        return Results.BadRequest(new { message = "File size exceeds 50MB limit" });
+    }
+    
+    try
+    {
+        using var stream = file.OpenReadStream();
+        var fileUrl = await fileStorageService.UploadFileAsync(stream, file.FileName, file.ContentType);
+        
+        return Results.Ok(new { url = fileUrl, fileName = file.FileName });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: 500,
+            title: "File Upload Error"
+        );
+    }
+})
+.RequireAuthorization()
+.DisableAntiforgery(); // Required for file uploads
+
+// Allow OPTIONS for CORS preflight
+app.MapMethods("/api/admin/upload", new[] { "OPTIONS" }, () => Results.Ok());
+
+// Proxy blob files to avoid CORS issues
+app.MapGet("/api/files/{*blobPath}", async (string blobPath, IFileStorageService fileStorageService) =>
+{
+    try
+    {
+        // For Azure Blob Storage, we need to fetch the file and stream it
+        if (fileStorageService is AzureBlobStorageService azureService)
+        {
+            var containerClient = azureService.GetContainerClient();
+            var blobClient = containerClient.GetBlobClient(blobPath);
+            
+            if (await blobClient.ExistsAsync())
+            {
+                var download = await blobClient.DownloadAsync();
+                var contentType = download.Value.Details.ContentType;
+                
+                return Results.Stream(download.Value.Content, contentType);
+            }
+            return Results.NotFound();
+        }
+        return Results.NotFound();
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+});
+
+// Get all products
+app.MapGet("/api/products", async (ApplicationDbContext dbContext) =>
+{
+    var products = await dbContext.Products
+        .OrderByDescending(p => p.CreatedAt)
+        .ToListAsync();
+    
+    return Results.Ok(products);
+});
+
+// Get product by ID
+app.MapGet("/api/products/{id}", async (string id, ApplicationDbContext dbContext) =>
+{
+    var product = await dbContext.Products.FindAsync(id);
+    
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    return Results.Ok(product);
+});
+
+// Get products by category
+app.MapGet("/api/products/category/{category}", async (string category, ApplicationDbContext dbContext) =>
+{
+    var products = await dbContext.Products
+        .Where(p => p.Category == category)
+        .OrderByDescending(p => p.CreatedAt)
+        .ToListAsync();
+    
+    return Results.Ok(products);
+});
+
+// Create new product (requires authentication)
+app.MapPost("/api/products", async (
+    Server.Models.Product product,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    // Validate product
+    if (string.IsNullOrEmpty(product.Title) || product.Price <= 0)
+    {
+        return Results.BadRequest(new { message = "Invalid product data" });
+    }
+    
+    product.Id = Guid.NewGuid().ToString();
+    product.CreatedAt = DateTime.UtcNow;
+    
+    dbContext.Products.Add(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Created($"/api/products/{product.Id}", product);
+}).RequireAuthorization();
+
+// Update product (requires authentication)
+app.MapPut("/api/products/{id}", async (
+    string id,
+    Server.Models.Product updatedProduct,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    // Update fields
+    product.Title = updatedProduct.Title;
+    product.Price = updatedProduct.Price;
+    product.Image = updatedProduct.Image;
+    product.ShortDescription = updatedProduct.ShortDescription;
+    product.LongDescription = updatedProduct.LongDescription;
+    product.ModelUrl = updatedProduct.ModelUrl;
+    product.Category = updatedProduct.Category;
+    product.Subcategory = updatedProduct.Subcategory;
+    product.Tags = updatedProduct.Tags;
+    product.UpdatedAt = DateTime.UtcNow;
+    
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Ok(product);
+}).RequireAuthorization();
+
+// Delete product (requires authentication)
+app.MapDelete("/api/products/{id}", async (
+    string id,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var product = await dbContext.Products.FindAsync(id);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    dbContext.Products.Remove(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.NoContent();
+}).RequireAuthorization();
 
 var summaries = new[]
 {

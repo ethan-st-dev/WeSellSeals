@@ -4,6 +4,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import CheckoutForm from './CheckoutForm';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
+import * as AuthContext from '../context/AuthContext';
+
+// Mock the auth context
+vi.mock('../context/AuthContext', () => ({
+  useAuth: vi.fn(),
+}));
 
 // Mock Stripe
 const stripePromise = loadStripe('pk_test_mock');
@@ -33,6 +39,15 @@ describe('CheckoutForm', () => {
   beforeEach(() => {
     mockOnSuccess = vi.fn();
     vi.clearAllMocks();
+    
+    // Mock useAuth to return a valid token
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      user: { email: 'test@example.com', id: 'test-user-id' },
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      getToken: vi.fn().mockResolvedValue('mock-jwt-token'),
+    });
   });
 
   it('renders payment form with Pay Now button', () => {

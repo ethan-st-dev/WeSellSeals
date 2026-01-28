@@ -43,6 +43,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <title>We Sell Seals</title>
         <Meta />
         <Links />
+        <script
+          type="module"
+          src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"
+        />
       </head>
       <body>
         <ClerkProvider publishableKey={PUBLISHABLE_KEY}>

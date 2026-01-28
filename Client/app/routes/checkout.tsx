@@ -16,7 +16,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 
 export default function Checkout() {
   const { state, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, getToken } = useAuth();
   const navigate = useNavigate();
   const [clientSecret, setClientSecret] = useState("");
   const [loading, setLoading] = useState(true);
@@ -36,12 +36,19 @@ export default function Checkout() {
     // Create payment intent
     const createPaymentIntent = async () => {
       try {
+        const token = await getToken();
+        if (!token) {
+          setError("Authentication required. Please log in again.");
+          setLoading(false);
+          return;
+        }
+
         const response = await fetch("http://localhost:5159/api/payments/create-payment-intent", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
           },
-          credentials: "include",
           body: JSON.stringify({
             items: state.items.map(item => ({
               sealId: item.id,
@@ -68,7 +75,7 @@ export default function Checkout() {
     };
 
     createPaymentIntent();
-  }, [user, state.items, navigate]);
+  }, [user, state.items, navigate, getToken]);
 
   const appearance = {
     theme: 'stripe' as const,
@@ -98,6 +105,28 @@ export default function Checkout() {
             Checkout Error
           </h2>
           <p className="text-red-600 dark:text-red-400">{error}</p>
+          <button
+            onClick={() => navigate("/cart")}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
+          >
+            Return to Cart
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (!clientSecret) {
+    return (
+      <main className="max-w-screen-md mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center py-12">
+          <p className="text-gray-600 dark:text-gray-400">Unable to initialize checkout. Please try again.</p>
+          <button
+            onClick={() => navigate("/cart")}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500"
+          >
+            Return to Cart
+          </button>
         </div>
       </main>
     );

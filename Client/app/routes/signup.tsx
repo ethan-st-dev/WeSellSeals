@@ -16,8 +16,7 @@ export default function SignUpPage() {
           Create your account
         </h2>
         <SignUp 
-          routing="path"
-          path="/signup"
+          routing="hash"
           signInUrl="/login"
           afterSignUpUrl="/"
           appearance={{

@@ -1,11 +1,18 @@
 # .NET
 Server/bin/
 Server/obj/
+Server/uploads/
 Server/appsettings.json
 Server/appsettings.Production.json
 *.db
 *.db-shm
 *.db-wal
+
+# SQL Server Docker data
+Server/sqlserver-data/
+
+# Azurite data
+Server/azurite-data/
 
 # Rider
 .idea/

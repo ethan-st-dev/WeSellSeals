@@ -18,7 +18,7 @@ interface Purchase {
 }
 
 export default function User() {
-  const { user, logout } = useAuth();
+  const { user, logout, getToken } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -37,8 +37,16 @@ export default function User() {
 
     const fetchPurchases = async () => {
       try {
+        const token = await getToken();
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
         const response = await fetch("http://localhost:5159/api/purchases/my-seals", {
-          credentials: "include",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
         });
 
         if (response.ok) {
@@ -57,7 +65,7 @@ export default function User() {
     if (user) {
       fetchPurchases();
     }
-  }, [user, searchParams, setSearchParams]);
+  }, [user, searchParams, setSearchParams, getToken]);
 
   const handleLogout = async () => {
     await logout();
@@ -66,10 +74,18 @@ export default function User() {
 
   const handleDownload = async (sealTitle: string, sealId: string) => {
     try {
+      const token = await getToken();
+      if (!token) {
+        alert('Please log in to download');
+        return;
+      }
+
       // Create a blob with sample 3D model data (GLB format placeholder)
       // In production, you'd fetch the actual file from your backend
       const response = await fetch(`http://localhost:5159/api/purchases/download/${sealId}`, {
-        credentials: "include",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
       });
 
       if (response.ok) {
