@@ -127,6 +127,23 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Handle OPTIONS requests explicitly for CORS preflight - MUST be before routing
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        context.Response.Headers.Append("Access-Control-Allow-Origin", 
+            context.Request.Headers["Origin"].ToString());
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "Authorization, Content-Type");
+        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
+        await context.Response.CompleteAsync();
+        return;
+    }
+    await next();
+});
+
 // Only use HTTPS redirection in development - Azure handles SSL termination
 if (app.Environment.IsDevelopment())
 {
@@ -163,18 +180,6 @@ if (!app.Environment.IsProduction())
 }
 
 app.UseCors();
-
-// Handle OPTIONS requests explicitly for CORS preflight
-app.Use(async (context, next) =>
-{
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.StatusCode = 200;
-        await context.Response.CompleteAsync();
-        return;
-    }
-    await next();
-});
 
 app.UseAuthentication();
 app.UseAuthorization();
