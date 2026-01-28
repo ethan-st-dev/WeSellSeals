@@ -231,12 +231,12 @@ jobs:
         ASPNETCORE_ENVIRONMENT: Production
         ConnectionStrings__AzureSqlConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
     
-    - name: Run Database Migrations
-      run: dotnet ef database update
-      working-directory: ./Server
-      env:
-        ASPNETCORE_ENVIRONMENT: Production
-        ConnectionStrings__AzureSqlConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+    #- name: Run Database Migrations
+      #run: dotnet ef database update
+      #working-directory: ./Server
+      #env:
+       # ASPNETCORE_ENVIRONMENT: Production
+        #ConnectionStrings__AzureSqlConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
     
     - name: Remove Runner IP from SQL Firewall
       if: always()
