@@ -115,7 +115,7 @@ builder.Services.AddAntiforgery();
 // Configure File Storage Service based on environment
 if (builder.Environment.IsProduction())
 {
-    // Production: Use Azure Blob Storage
+    // Production: Use Azure Blob Storage.
     builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
 }
 else
