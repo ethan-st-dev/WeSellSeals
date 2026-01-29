@@ -7,10 +7,12 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["Server.csproj", "./"]
+# Copy only the csproj and restore as distinct layers
+COPY Server/Server.csproj ./
 RUN dotnet restore "Server.csproj"
-COPY . .
-WORKDIR "/src"
+# Copy the rest of the server source code
+COPY Server/. ./
+WORKDIR /src
 RUN dotnet build "Server.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
