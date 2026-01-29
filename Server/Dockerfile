@@ -20,4 +20,6 @@ RUN dotnet publish "Server.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:Us
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+# Ensure ASP.NET Core listens on port 8080 for Azure Container Apps
+ENV ASPNETCORE_URLS=http://+:8080
 ENTRYPOINT ["dotnet", "Server.dll"]
