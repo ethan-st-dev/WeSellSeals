@@ -1,27 +1,28 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-USER $APP_UID
+﻿
+# Use official ASP.NET runtime as a parent image
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
-EXPOSE 8081
 
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-# Copy only the csproj and restore as distinct layers
+# Copy csproj and restore as distinct layers
 COPY Server/Server.csproj ./
 RUN dotnet restore "Server.csproj"
 # Copy the rest of the server source code
 COPY Server/. ./
-WORKDIR /src
 RUN dotnet build "Server.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
+# Publish stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "Server.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
+# Final stage
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-# Ensure ASP.NET Core listens on port 8080 for Azure Container Apps
 ENV ASPNETCORE_URLS=http://+:8080
 ENTRYPOINT ["dotnet", "Server.dll"]

@@ -172,7 +172,7 @@ jobs:
     
     - name: Build and Push Docker Image
       run: |
-        docker build -t wesellsealsacr.azurecr.io/wesellseals-api:${{ github.sha }} -t wesellsealsacr.azurecr.io/wesellseals-api:latest -f Server/Dockerfile .
+        docker build -t wesellsealsacr.azurecr.io/wesellseals-api:${{ github.sha }} -t wesellsealsacr.azurecr.io/wesellseals-api:latest -f Server/Dockerfile ./Server
         docker push wesellsealsacr.azurecr.io/wesellseals-api:${{ github.sha }}
         docker push wesellsealsacr.azurecr.io/wesellseals-api:latest
     
