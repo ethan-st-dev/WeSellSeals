@@ -115,7 +115,8 @@ jobs:
         npm run build
       working-directory: ./Client
       env:
-        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder_for_ci_build' }}
+        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder_for_ci_build' }}
+        VITE_CLERK_PUBLISHABLE_KEY_PROD: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY_PROD || 'pk_live_placeholder_for_ci_build' }}
     
     - name: Verify Backend Build Artifacts
       run: |
