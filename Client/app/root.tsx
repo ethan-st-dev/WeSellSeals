@@ -15,7 +15,11 @@ import Footer from "./components/Footer";
 import { CartProvider } from "./context/CartContext";
 import { AuthProvider } from "./context/AuthContext";
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+const isProd = import.meta.env.MODE === "production";
+const PUBLISHABLE_KEY = isProd
+  ? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY_PROD
+  : import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 if (!PUBLISHABLE_KEY) {
   throw new Error("Missing Clerk Publishable Key");
