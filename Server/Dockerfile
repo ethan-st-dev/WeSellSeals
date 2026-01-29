@@ -9,10 +9,10 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 # Copy csproj and restore as distinct layers
-COPY Server/Server.csproj ./
+COPY Server.csproj ./
 RUN dotnet restore "Server.csproj"
 # Copy the rest of the server source code
-COPY Server/. ./
+COPY . ./
 RUN dotnet build "Server.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # Publish stage
