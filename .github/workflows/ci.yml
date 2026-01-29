@@ -257,7 +257,9 @@ jobs:
       env:
         VITE_API_URL: ${{ secrets.AZURE_API_URL }}
         VITE_STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
-        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+        VITE_CLERK_PUBLISHABLE_KEY_PROD: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY_PROD }}
+
     
     - name: Copy static web app config
       run: cp ./Client/public/staticwebapp.config.json ./Client/build/client/
