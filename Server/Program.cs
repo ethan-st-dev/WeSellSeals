@@ -65,23 +65,45 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+var explicitCorsOrigins = new[]
+{
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://localhost:5173",
+    "https://localhost:5174",
+    "https://wesellseals-client.azurestaticapps.net",
+    "https://brave-beach-02c856b1e.4.azurestaticapps.net"
+};
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173", 
-                "http://localhost:5174",
-                "https://localhost:5173",
-                "https://localhost:5174",
-                "https://wesellseals-client.azurestaticapps.net",
-                "https://brave-beach-02c856b1e.4.azurestaticapps.net"
-              )
-              .AllowCredentials()
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .WithExposedHeaders("*")
-              .SetIsOriginAllowedToAllowWildcardSubdomains();
+        policy.SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin))
+                {
+                    return false;
+                }
+
+                if (explicitCorsOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                // Allow any Azure Static Web Apps or Azure App Service hostname so new deployments work without code changes
+                if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                {
+                    return uri.Host.EndsWith("azurestaticapps.net", StringComparison.OrdinalIgnoreCase)
+                        || uri.Host.EndsWith("azurewebsites.net", StringComparison.OrdinalIgnoreCase);
+                }
+
+                return false;
+            })
+            .AllowCredentials()
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .WithExposedHeaders("*");
     });
 });
 
