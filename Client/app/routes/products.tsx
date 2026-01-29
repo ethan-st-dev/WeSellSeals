@@ -60,6 +60,8 @@ export default function Products() {
         return;
       }
 
+      if (!products.length) return;
+
       try {
         const token = await getToken();
         if (!token) return;
@@ -84,7 +86,7 @@ export default function Products() {
     };
 
     checkOwnership();
-  }, [user, getToken]);
+  }, [user, getToken, products]);
 
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = products;
@@ -126,7 +128,7 @@ export default function Products() {
     }
 
     return sorted;
-  }, [searchQuery, selectedCategory, sortBy]);
+  }, [products, searchQuery, selectedCategory, sortBy]);
 
   const categoryCount = useMemo(() => {
     const counts: Record<string, number> = { all: products.length };
@@ -134,7 +136,7 @@ export default function Products() {
       counts[product.category] = (counts[product.category] || 0) + 1;
     });
     return counts;
-  }, []);
+  }, [products]);
 
   const handleCategoryChange = (category: ProductCategory | "all") => {
     setSelectedCategory(category);
