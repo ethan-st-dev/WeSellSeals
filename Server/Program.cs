@@ -581,7 +581,8 @@ app.MapGet("/api/purchases/my-seals", async (
 app.MapGet("/api/purchases/download/{sealId}", async (
     string sealId,
     HttpContext context,
-    ApplicationDbContext dbContext) =>
+    ApplicationDbContext dbContext,
+    IFileStorageService fileStorageService) =>
 {
     var user = await GetOrCreateUserFromClerk(context, dbContext);
     if (user == null)
@@ -598,17 +599,100 @@ app.MapGet("/api/purchases/download/{sealId}", async (
         return Results.NotFound(new { message = "You do not own this seal" });
     }
     
-    // In production, you would serve the actual 3D model file from storage
-    // For now, return a placeholder GLB file
-    var placeholderContent = System.Text.Encoding.UTF8.GetBytes(
-        $"# {purchase.SealTitle} 3D Model\\n# Placeholder file - replace with actual GLB model"
-    );
+    // Get the product to find the model URL
+    var product = await dbContext.Products.FindAsync(sealId);
+    if (product == null || string.IsNullOrEmpty(product.ModelUrl))
+    {
+        return Results.NotFound(new { message = "3D model file not found for this seal" });
+    }
     
-    return Results.File(
-        placeholderContent,
-        contentType: "model/gltf-binary",
-        fileDownloadName: $"{purchase.SealTitle.Replace(" ", "-")}.glb"
-    );
+    try
+    {
+        // Extract blob path from ModelUrl
+        // ModelUrl should be either:
+        // 1. A blob path like "seal-models/xyz.glb"
+        // 2. Our API URL like "http://localhost:5159/api/files/seal-models/xyz.glb"
+        // 3. Azure blob URL (will extract the path)
+        string blobPath;
+        
+        if (product.ModelUrl.Contains("/api/files/"))
+        {
+            // Extract path after /api/files/
+            var parts = product.ModelUrl.Split("/api/files/", 2);
+            blobPath = parts.Length > 1 ? parts[1] : product.ModelUrl;
+        }
+        else if (product.ModelUrl.StartsWith("http"))
+        {
+            // Parse as URI to extract path
+            var uri = new Uri(product.ModelUrl);
+            blobPath = uri.AbsolutePath.TrimStart('/');
+            
+            // Remove container name if present in path
+            if (blobPath.StartsWith("sealmodels/"))
+            {
+                blobPath = blobPath.Substring("sealmodels/".Length);
+            }
+            else if (blobPath.Contains("/sealmodels/"))
+            {
+                var idx = blobPath.IndexOf("/sealmodels/") + "/sealmodels/".Length;
+                blobPath = blobPath.Substring(idx);
+            }
+        }
+        else
+        {
+            // Already a blob path
+            blobPath = product.ModelUrl;
+        }
+        
+        // Fetch the file from storage
+        if (fileStorageService is AzureBlobStorageService azureService)
+        {
+            var containerClient = azureService.GetContainerClient();
+            var blobClient = containerClient.GetBlobClient(blobPath);
+            
+            if (!await blobClient.ExistsAsync())
+            {
+                return Results.NotFound(new { message = "3D model file not found in storage" });
+            }
+            
+            var download = await blobClient.DownloadAsync();
+            var stream = download.Value.Content;
+            
+            return Results.File(
+                stream,
+                contentType: "model/gltf-binary",
+                fileDownloadName: $"{purchase.SealTitle.Replace(" ", "-")}.glb"
+            );
+        }
+        else if (fileStorageService is LocalFileStorageService)
+        {
+            // For local storage, construct the file path
+            var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", blobPath);
+            
+            if (!System.IO.File.Exists(uploadsPath))
+            {
+                return Results.NotFound(new { message = "3D model file not found in local storage" });
+            }
+            
+            var fileStream = System.IO.File.OpenRead(uploadsPath);
+            
+            return Results.File(
+                fileStream,
+                contentType: "model/gltf-binary",
+                fileDownloadName: $"{purchase.SealTitle.Replace(" ", "-")}.glb"
+            );
+        }
+        
+        return Results.Problem("File storage service not configured properly");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: 500,
+            title: "Download Error"
+        );
+    }
 }).RequireAuthorization();
 
 app.MapGet("/api/purchases/owns/{sealId}", async (

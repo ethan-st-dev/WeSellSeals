@@ -11,9 +11,6 @@ export function meta({}: Route.MetaArgs) {
   return [{ title: "Checkout — We Sell Seals" }];
 }
 
-// Replace with your actual publishable key from .env
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_test_YOUR_PUBLISHABLE_KEY_HERE");
-
 export default function Checkout() {
   const { state, clearCart } = useCart();
   const { user, getToken } = useAuth();
@@ -21,8 +18,25 @@ export default function Checkout() {
   const [clientSecret, setClientSecret] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  
+  // Initialize Stripe with the publishable key from environment
+  const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+  const stripePromise = React.useMemo(() => {
+    if (!stripePublishableKey) {
+      console.error('VITE_STRIPE_PUBLISHABLE_KEY is not set');
+      return null;
+    }
+    console.log('Initializing Stripe with key:', stripePublishableKey.substring(0, 20) + '...');
+    return loadStripe(stripePublishableKey);
+  }, [stripePublishableKey]);
 
   useEffect(() => {
+    if (!stripePublishableKey) {
+      setError("Stripe is not configured. Please check your environment variables.");
+      setLoading(false);
+      return;
+    }
+
     if (!user) {
       navigate("/login?redirect=/checkout");
       return;
@@ -75,7 +89,7 @@ export default function Checkout() {
     };
 
     createPaymentIntent();
-  }, [user, state.items, navigate, getToken]);
+  }, [user, state.items, navigate, getToken, stripePublishableKey]);
 
   const appearance = {
     theme: 'stripe' as const,
@@ -172,13 +186,20 @@ export default function Checkout() {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
               Payment Information
             </h2>
-            {clientSecret && (
+            {clientSecret && stripePromise && (
               <Elements options={options} stripe={stripePromise}>
                 <CheckoutForm onSuccess={() => {
                   clearCart();
                   navigate("/user?success=true");
                 }} />
               </Elements>
+            )}
+            {clientSecret && !stripePromise && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-red-600 dark:text-red-400">
+                  Stripe payment system is not configured. Please contact support.
+                </p>
+              </div>
             )}
           </div>
         </div>
