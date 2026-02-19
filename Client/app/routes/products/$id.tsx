@@ -310,6 +310,11 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
           </div>
         </div>
       </div>
+      <div className="mt-12 text-left">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+          Comments
+        </h1>
+      </div>
     </div>
   );
 }

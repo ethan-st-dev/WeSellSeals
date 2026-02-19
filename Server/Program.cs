@@ -838,8 +838,8 @@ app.MapGet("/api/products", async (ApplicationDbContext dbContext) =>
 // Get product by ID
 app.MapGet("/api/products/{id}", async (string id, ApplicationDbContext dbContext) =>
 {
-    var product = await dbContext.Products.FindAsync(id);
-    
+    var product = await dbContext.Products.Include(p => p.Comments).FirstOrDefaultAsync(p => p.Id == id);
+
     if (product == null)
     {
         return Results.NotFound(new { message = "Product not found" });
@@ -941,6 +941,102 @@ app.MapDelete("/api/products/{id}", async (
     }
     
     dbContext.Products.Remove(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.NoContent();
+}).RequireAuthorization();
+
+// Create new comment (requires authentication)
+app.MapPost("/api/products/{id}/comments", async (
+    string id,
+    Server.Models.Comment comment,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    // Validate comment
+    if (string.IsNullOrEmpty(comment.Content))
+    {
+        return Results.BadRequest(new { message = "Invalid product data" });
+    }
+    
+    comment.Id = Guid.NewGuid().ToString();
+    comment.CreatedAt = DateTime.UtcNow;
+    comment.ProductId = id;
+    comment.UserId = user.Id;
+    comment.UserName = user.UserName;
+    
+    dbContext.Comments.Add(comment);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Created($"/api/products/{id}/comments/{comment.Id}", comment);
+}).RequireAuthorization();
+//update comment
+app.MapPut("/api/products/{productId}/comments/{commentId}", async (
+    string productId,
+    string commentId,
+    Server.Models.Comment updatedComment,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var product = await dbContext.Products.FindAsync(productId);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    var comment = await dbContext.Comments.FindAsync(commentId);
+    if (comment == null || comment.ProductId != productId)
+    {
+        return Results.NotFound(new { message = "Comment not found" });
+    }
+    
+    // Update fields
+    comment.Content = updatedComment.Content;
+    comment.UpdatedAt = DateTime.UtcNow;
+    
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Ok(comment);
+}).RequireAuthorization();
+
+//function to delete comment
+app.MapDelete("/api/products/{productId}/comments/{commentid}", async (
+    string productId,
+    string commentId,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var product = await dbContext.Products.FindAsync(productId);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+
+    var comment = await dbContext.Comments.FindAsync(commentId);
+    if (comment == null || comment.ProductId != productId)
+    {
+        return Results.NotFound(new { message = "Comment not found" });
+    }
+    
+    dbContext.Comments.Remove(comment);
     await dbContext.SaveChangesAsync();
     
     return Results.NoContent();
