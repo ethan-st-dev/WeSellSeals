@@ -143,8 +143,8 @@ export async function addComment(productId: string, content: string, token: stri
   const comment = await response.json();
   return comment;
 }
-export async function deleteComment(commentId: string, token: string): Promise<void> {
-  const response = await apiClient(`/api/products/comments/${commentId}`, {
+export async function deleteComment(productId: string, commentId: string, token: string): Promise<void> {
+  const response = await apiClient(`/api/products/${productId}/comments/${commentId}`, {
     method: 'DELETE',
     token,
   });
@@ -153,8 +153,8 @@ export async function deleteComment(commentId: string, token: string): Promise<v
     throw new Error('Failed to delete comment');
   }
 }
-export async function editComment(commentId: string, content: string, token: string): Promise<Comment> {
-  const response = await apiClient(`/api/products/comments/${commentId}`, {
+export async function editComment(productId: string, commentId: string, content: string, token: string): Promise<Comment> {
+  const response = await apiClient(`/api/products/${productId}/comments/${commentId}`, {
     method: 'PUT',
     body: JSON.stringify({ content }),
     token,

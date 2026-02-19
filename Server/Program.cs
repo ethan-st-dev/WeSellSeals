@@ -247,16 +247,46 @@ static async Task<ApplicationUser?> GetOrCreateUserFromClerk(HttpContext context
         var email = context.User.FindFirst("email")?.Value 
                  ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
         
+        // Try to get display name from Clerk claims
+        var name = context.User.FindFirst("name")?.Value;
+        if (string.IsNullOrEmpty(name))
+        {
+            var firstName = context.User.FindFirst("first_name")?.Value 
+                         ?? context.User.FindFirst("given_name")?.Value;
+            var lastName = context.User.FindFirst("last_name")?.Value 
+                        ?? context.User.FindFirst("family_name")?.Value;
+            name = $"{firstName} {lastName}".Trim();
+        }
+        
         user = new ApplicationUser
         {
             Id = clerkUserId,
-            UserName = email ?? clerkUserId,
+            UserName = !string.IsNullOrEmpty(name) ? name : (email ?? clerkUserId),
             Email = email,
             EmailConfirmed = true // Clerk handles email verification
         };
         
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
+    }
+    else
+    {
+        // Update username with latest Clerk info if available
+        var name = context.User.FindFirst("name")?.Value;
+        if (string.IsNullOrEmpty(name))
+        {
+            var firstName = context.User.FindFirst("first_name")?.Value 
+                         ?? context.User.FindFirst("given_name")?.Value;
+            var lastName = context.User.FindFirst("last_name")?.Value 
+                        ?? context.User.FindFirst("family_name")?.Value;
+            name = $"{firstName} {lastName}".Trim();
+        }
+        
+        if (!string.IsNullOrEmpty(name) && user.UserName != name)
+        {
+            user.UserName = name;
+            await dbContext.SaveChangesAsync();
+        }
     }
     
     return user;
@@ -294,6 +324,18 @@ app.MapGet("/api/auth/user", async (HttpContext context, ApplicationDbContext db
     }
     
     return Results.Unauthorized();
+}).RequireAuthorization();
+
+// Debug endpoint to see Clerk claims
+app.MapGet("/api/auth/claims", (HttpContext context) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var claims = context.User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+    return Results.Ok(claims);
 }).RequireAuthorization();
 
 // Stripe Payment Intent endpoint
@@ -965,11 +1007,31 @@ app.MapPost("/api/products/{id}/comments", async (
         return Results.BadRequest(new { message = "Invalid product data" });
     }
     
+    // Get the display name from Clerk claims
+    var displayName = context.User.FindFirst("name")?.Value;
+    if (string.IsNullOrEmpty(displayName))
+    {
+        // Try first_name/last_name (Clerk's standard format)
+        var firstName = context.User.FindFirst("first_name")?.Value 
+                     ?? context.User.FindFirst("given_name")?.Value;
+        var lastName = context.User.FindFirst("last_name")?.Value 
+                    ?? context.User.FindFirst("family_name")?.Value;
+        displayName = $"{firstName} {lastName}".Trim();
+    }
+    if (string.IsNullOrEmpty(displayName))
+    {
+        // Try email or username as fallback
+        displayName = context.User.FindFirst("email")?.Value 
+                   ?? user.Email 
+                   ?? user.UserName 
+                   ?? "Anonymous";
+    }
+    
     comment.Id = Guid.NewGuid().ToString();
     comment.CreatedAt = DateTime.UtcNow;
     comment.ProductId = id;
     comment.UserId = user.Id;
-    comment.UserName = user.UserName;
+    comment.UserName = displayName;
     
     dbContext.Comments.Add(comment);
     await dbContext.SaveChangesAsync();
