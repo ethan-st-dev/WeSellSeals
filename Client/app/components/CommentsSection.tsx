@@ -1,7 +1,57 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import type { Comment } from "../data/products";
-import { addComment, deleteComment, editComment } from "../data/products";
+import { apiClient } from "~/lib/apiClient";
+
+
+export type Comment = {
+  id: string;
+  productId: string;
+  userId: string;
+  userName: string; 
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function addComment(productId: string, content: string, token: string): Promise<Comment> {
+  const response = await apiClient(`/api/products/${productId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+    token,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to add comment');
+  }
+
+  const comment = await response.json();
+  return comment;
+}
+export async function deleteComment(productId: string, commentId: string, token: string): Promise<void> {
+  const response = await apiClient(`/api/products/${productId}/comments/${commentId}`, {
+    method: 'DELETE',
+    token,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to delete comment');
+  }
+}
+export async function editComment(productId: string, commentId: string, content: string, token: string): Promise<Comment> {
+  const response = await apiClient(`/api/products/${productId}/comments/${commentId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+    token,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to edit comment');
+  }
+
+  const comment = await response.json();
+  return comment;
+}
+
 
 type CommentsSectionProps = {
   productId: string;

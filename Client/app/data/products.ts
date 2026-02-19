@@ -1,4 +1,5 @@
 import { apiClient } from "~/lib/apiClient";
+import type { Comment } from "../components/CommentsSection";
 
 export type ProductCategory = 
   | "seals"
@@ -10,15 +11,7 @@ export type ProductCategory =
   | "animals"
   | "characters";
 
-export type Comment = {
-  id: string;
-  productId: string;
-  userId: string;
-  userName: string; 
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-}
+
 
 export type Product = {
   id: string;
@@ -129,44 +122,6 @@ export async function deleteProduct(id: string, token: string): Promise<void> {
   }
 }
 
-export async function addComment(productId: string, content: string, token: string): Promise<Comment> {
-  const response = await apiClient(`/api/products/${productId}/comments`, {
-    method: 'POST',
-    body: JSON.stringify({ content }),
-    token,
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to add comment');
-  }
-
-  const comment = await response.json();
-  return comment;
-}
-export async function deleteComment(productId: string, commentId: string, token: string): Promise<void> {
-  const response = await apiClient(`/api/products/${productId}/comments/${commentId}`, {
-    method: 'DELETE',
-    token,
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to delete comment');
-  }
-}
-export async function editComment(productId: string, commentId: string, content: string, token: string): Promise<Comment> {
-  const response = await apiClient(`/api/products/${productId}/comments/${commentId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ content }),
-    token,
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to edit comment');
-  }
-
-  const comment = await response.json();
-  return comment;
-}
 
 // Helper function to search/filter products (can be used on fetched products)
 export function searchProducts(products: Product[], query: string, category?: ProductCategory): Product[] {
