@@ -30,12 +30,35 @@ if (builder.Environment.EnvironmentName == "Testing")
 }
 else if (builder.Environment.IsProduction())
 {
-    // Production: Use Azure SQL Database
-    var connectionString = builder.Configuration.GetConnectionString("AzureSqlConnection")
-        ?? throw new InvalidOperationException("Connection string 'AzureSqlConnection' not found.");
+    // Production: Use Azure SQL Database OR SQLite (for free tier)
+    var azureSqlConnection = builder.Configuration.GetConnectionString("AzureSqlConnection");
+    var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
     
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlServer(connectionString));
+    if (!string.IsNullOrEmpty(azureSqlConnection))
+    {
+        // Use Azure SQL Database (paid tier)
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlServer(azureSqlConnection));
+    }
+    else if (!string.IsNullOrEmpty(defaultConnection))
+    {
+        // Use SQLite (free tier) - check if it's a SQLite connection string
+        if (defaultConnection.Contains("Data Source=", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlite(defaultConnection));
+        }
+        else
+        {
+            // Fallback to SQL Server
+            builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlServer(defaultConnection));
+        }
+    }
+    else
+    {
+        throw new InvalidOperationException("No database connection string found. Set either 'AzureSqlConnection' or 'DefaultConnection'.");
+    }
 }
 else
 {
@@ -123,6 +146,11 @@ else
     // Development: Use Azurite (local Azure emulator)
     builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
 }
+
+// Configure SQLite Blob Sync for persistent storage (FREE)
+builder.Services.AddSingleton<ISqliteBlobSyncService, SqliteBlobSyncService>();
+builder.Services.AddHostedService<DatabaseInitializationService>();
+builder.Services.AddHostedService<DatabaseBackupService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -237,6 +265,10 @@ static async Task<ApplicationUser?> GetOrCreateUserFromClerk(HttpContext context
     {
         return null;
     }
+    
+    // Log claims for debugging
+    var claimsDebug = string.Join(", ", context.User.Claims.Select(c => $"{c.Type}"));
+    Console.WriteLine($"[GetOrCreateUser] Clerk User ID: {clerkUserId}, Available claim types: {claimsDebug}");
 
     // Check if user exists in our database
     var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == clerkUserId);
@@ -1008,6 +1040,10 @@ app.MapPost("/api/products/{id}/comments", async (
     }
     
     // Get the display name from Clerk claims
+    // Log all available claims for debugging
+    var allClaims = string.Join(", ", context.User.Claims.Select(c => $"{c.Type}={c.Value}"));
+    Console.WriteLine($"Available claims: {allClaims}");
+    
     var displayName = context.User.FindFirst("name")?.Value;
     if (string.IsNullOrEmpty(displayName))
     {
@@ -1026,6 +1062,8 @@ app.MapPost("/api/products/{id}/comments", async (
                    ?? user.UserName 
                    ?? "Anonymous";
     }
+    
+    Console.WriteLine($"Using display name: {displayName}");
     
     comment.Id = Guid.NewGuid().ToString();
     comment.CreatedAt = DateTime.UtcNow;
