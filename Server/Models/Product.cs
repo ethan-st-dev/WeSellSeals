@@ -38,6 +38,8 @@ public class Product
     
     [Required]
     public string Tags { get; set; } = string.Empty; // Stored as JSON array string
+
+    public List<Comment> Comments { get; set; } = new List<Comment>();
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     

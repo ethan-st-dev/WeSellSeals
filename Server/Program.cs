@@ -30,12 +30,16 @@ if (builder.Environment.EnvironmentName == "Testing")
 }
 else if (builder.Environment.IsProduction())
 {
-    // Production: Use Azure SQL Database
-    var connectionString = builder.Configuration.GetConnectionString("AzureSqlConnection")
-        ?? throw new InvalidOperationException("Connection string 'AzureSqlConnection' not found.");
+    // Production: Use PostgreSQL (Supabase free tier)
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        throw new InvalidOperationException("No database connection string found. Set 'DefaultConnection' in configuration.");
+    }
     
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlServer(connectionString));
+        options.UseNpgsql(connectionString));
 }
 else
 {
@@ -123,6 +127,8 @@ else
     // Development: Use Azurite (local Azure emulator)
     builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
 }
+
+// Note: SQLite blob sync services removed - using PostgreSQL for production
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -237,6 +243,10 @@ static async Task<ApplicationUser?> GetOrCreateUserFromClerk(HttpContext context
     {
         return null;
     }
+    
+    // Log claims for debugging
+    var claimsDebug = string.Join(", ", context.User.Claims.Select(c => $"{c.Type}"));
+    Console.WriteLine($"[GetOrCreateUser] Clerk User ID: {clerkUserId}, Available claim types: {claimsDebug}");
 
     // Check if user exists in our database
     var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == clerkUserId);
@@ -247,16 +257,46 @@ static async Task<ApplicationUser?> GetOrCreateUserFromClerk(HttpContext context
         var email = context.User.FindFirst("email")?.Value 
                  ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
         
+        // Try to get display name from Clerk claims
+        var name = context.User.FindFirst("name")?.Value;
+        if (string.IsNullOrEmpty(name))
+        {
+            var firstName = context.User.FindFirst("first_name")?.Value 
+                         ?? context.User.FindFirst("given_name")?.Value;
+            var lastName = context.User.FindFirst("last_name")?.Value 
+                        ?? context.User.FindFirst("family_name")?.Value;
+            name = $"{firstName} {lastName}".Trim();
+        }
+        
         user = new ApplicationUser
         {
             Id = clerkUserId,
-            UserName = email ?? clerkUserId,
+            UserName = !string.IsNullOrEmpty(name) ? name : (email ?? clerkUserId),
             Email = email,
             EmailConfirmed = true // Clerk handles email verification
         };
         
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
+    }
+    else
+    {
+        // Update username with latest Clerk info if available
+        var name = context.User.FindFirst("name")?.Value;
+        if (string.IsNullOrEmpty(name))
+        {
+            var firstName = context.User.FindFirst("first_name")?.Value 
+                         ?? context.User.FindFirst("given_name")?.Value;
+            var lastName = context.User.FindFirst("last_name")?.Value 
+                        ?? context.User.FindFirst("family_name")?.Value;
+            name = $"{firstName} {lastName}".Trim();
+        }
+        
+        if (!string.IsNullOrEmpty(name) && user.UserName != name)
+        {
+            user.UserName = name;
+            await dbContext.SaveChangesAsync();
+        }
     }
     
     return user;
@@ -294,6 +334,18 @@ app.MapGet("/api/auth/user", async (HttpContext context, ApplicationDbContext db
     }
     
     return Results.Unauthorized();
+}).RequireAuthorization();
+
+// Debug endpoint to see Clerk claims
+app.MapGet("/api/auth/claims", (HttpContext context) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var claims = context.User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+    return Results.Ok(claims);
 }).RequireAuthorization();
 
 // Stripe Payment Intent endpoint
@@ -838,8 +890,8 @@ app.MapGet("/api/products", async (ApplicationDbContext dbContext) =>
 // Get product by ID
 app.MapGet("/api/products/{id}", async (string id, ApplicationDbContext dbContext) =>
 {
-    var product = await dbContext.Products.FindAsync(id);
-    
+    var product = await dbContext.Products.Include(p => p.Comments).FirstOrDefaultAsync(p => p.Id == id);
+
     if (product == null)
     {
         return Results.NotFound(new { message = "Product not found" });
@@ -941,6 +993,128 @@ app.MapDelete("/api/products/{id}", async (
     }
     
     dbContext.Products.Remove(product);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.NoContent();
+}).RequireAuthorization();
+
+// Create new comment (requires authentication)
+app.MapPost("/api/products/{id}/comments", async (
+    string id,
+    Server.Models.Comment comment,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    // Validate comment
+    if (string.IsNullOrEmpty(comment.Content))
+    {
+        return Results.BadRequest(new { message = "Invalid product data" });
+    }
+    
+    // Get the display name from Clerk claims
+    // Log all available claims for debugging
+    var allClaims = string.Join(", ", context.User.Claims.Select(c => $"{c.Type}={c.Value}"));
+    Console.WriteLine($"Available claims: {allClaims}");
+    
+    var displayName = context.User.FindFirst("name")?.Value;
+    if (string.IsNullOrEmpty(displayName))
+    {
+        // Try first_name/last_name (Clerk's standard format)
+        var firstName = context.User.FindFirst("first_name")?.Value 
+                     ?? context.User.FindFirst("given_name")?.Value;
+        var lastName = context.User.FindFirst("last_name")?.Value 
+                    ?? context.User.FindFirst("family_name")?.Value;
+        displayName = $"{firstName} {lastName}".Trim();
+    }
+    if (string.IsNullOrEmpty(displayName))
+    {
+        // Try email or username as fallback
+        displayName = context.User.FindFirst("email")?.Value 
+                   ?? user.Email 
+                   ?? user.UserName 
+                   ?? "Anonymous";
+    }
+    
+    Console.WriteLine($"Using display name: {displayName}");
+    
+    comment.Id = Guid.NewGuid().ToString();
+    comment.CreatedAt = DateTime.UtcNow;
+    comment.ProductId = id;
+    comment.UserId = user.Id;
+    comment.UserName = displayName;
+    
+    dbContext.Comments.Add(comment);
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Created($"/api/products/{id}/comments/{comment.Id}", comment);
+}).RequireAuthorization();
+//update comment
+app.MapPut("/api/products/{productId}/comments/{commentId}", async (
+    string productId,
+    string commentId,
+    Server.Models.Comment updatedComment,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var product = await dbContext.Products.FindAsync(productId);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+    
+    var comment = await dbContext.Comments.FindAsync(commentId);
+    if (comment == null || comment.ProductId != productId)
+    {
+        return Results.NotFound(new { message = "Comment not found" });
+    }
+    
+    // Update fields
+    comment.Content = updatedComment.Content;
+    comment.UpdatedAt = DateTime.UtcNow;
+    
+    await dbContext.SaveChangesAsync();
+    
+    return Results.Ok(comment);
+}).RequireAuthorization();
+
+//function to delete comment
+app.MapDelete("/api/products/{productId}/comments/{commentid}", async (
+    string productId,
+    string commentId,
+    HttpContext context,
+    ApplicationDbContext dbContext) =>
+{
+    var user = await GetOrCreateUserFromClerk(context, dbContext);
+    if (user == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var product = await dbContext.Products.FindAsync(productId);
+    if (product == null)
+    {
+        return Results.NotFound(new { message = "Product not found" });
+    }
+
+    var comment = await dbContext.Comments.FindAsync(commentId);
+    if (comment == null || comment.ProductId != productId)
+    {
+        return Results.NotFound(new { message = "Comment not found" });
+    }
+    
+    dbContext.Comments.Remove(comment);
     await dbContext.SaveChangesAsync();
     
     return Results.NoContent();

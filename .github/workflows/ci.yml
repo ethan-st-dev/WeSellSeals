@@ -2,9 +2,15 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, ci-cd ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: wesellseals-api-free
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '20'
 
 jobs:
   # Backend Tests
@@ -128,158 +134,6 @@ jobs:
         echo "Checking frontend build output..."
         ls -la ./Client/build/
 
-  # Deploy to Azure Production
-  deploy-production:
-    name: Deploy to Azure Production
-    runs-on: ubuntu-latest
-    needs: [build-check]
-    if: github.ref == 'refs/heads/main'
-    environment:
-      name: production
-      url: https://brave-beach-02c856b1e.4.azurestaticapps.net
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '10.0.x'
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: ./Client/package-lock.json
-    
-    # Build and Publish Backend
-    - name: Restore Backend Dependencies
-      run: dotnet restore
-      working-directory: ./Server
-    
-    - name: Publish Backend
-      run: dotnet publish --configuration Release --output ./publish
-      working-directory: ./Server
-    
-    - name: Login to Azure
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-    
-    - name: Login to Azure Container Registry
-      run: |
-        az acr login --name wesellsealsacr
-    
-    - name: Build and Push Docker Image
-      run: |
-        docker build -t wesellsealsacr.azurecr.io/wesellseals-api:${{ github.sha }} -t wesellsealsacr.azurecr.io/wesellseals-api:latest -f Server/Dockerfile ./Server
-        docker push wesellsealsacr.azurecr.io/wesellseals-api:${{ github.sha }}
-        docker push wesellsealsacr.azurecr.io/wesellseals-api:latest
-    
-    - name: Deploy to Azure Container Apps
-      run: |
-        az containerapp update \
-          --name wesellseals-api \
-          --resource-group WeSellSeals-Production-RG \
-          --image wesellsealsacr.azurecr.io/wesellseals-api:latest \
-          --set-env-vars \
-            "ConnectionStrings__AzureSqlConnection=${{ secrets.AZURE_SQL_CONNECTION_STRING }}" \
-            "Stripe__SecretKey=${{ secrets.STRIPE_SECRET_KEY }}" \
-            "Clerk__Domain=${{ secrets.CLERK_DOMAIN }}" \
-            "ASPNETCORE_ENVIRONMENT=Production" \
-            "ASPNETCORE_URLS=http://+:8080"
-    
-    - name: Configure Container Apps Ingress
-      run: |
-        az containerapp ingress update \
-          --name wesellseals-api \
-          --resource-group WeSellSeals-Production-RG \
-          --target-port 8080
-    
-    # Run Database Migrations
-    - name: Get Runner IP Address
-      id: ip
-      run: |
-        RUNNER_IP=$(curl -s https://api.ipify.org)
-        echo "runner_ip=$RUNNER_IP" >> $GITHUB_OUTPUT
-        echo "Detected runner IP: $RUNNER_IP"
-    
-    - name: Add Runner IP to SQL Firewall
-      run: |
-        echo "Adding IP ${{ steps.ip.outputs.runner_ip }} to firewall..."
-        az sql server firewall-rule create \
-          --resource-group WeSellSeals-Production-RG \
-          --server wesellseals-sql-server \
-          --name "GitHubActions-${{ github.run_id }}" \
-          --start-ip-address ${{ steps.ip.outputs.runner_ip }} \
-          --end-ip-address ${{ steps.ip.outputs.runner_ip }}
-        echo "Waiting 10 seconds for firewall rule to propagate..."
-        sleep 30
-    
-    - name: Install EF Core Tools
-      run: dotnet tool install --global dotnet-ef
-    
-    - name: Restore Dependencies for Migrations
-      run: dotnet restore
-      working-directory: ./Server
-    
-    - name: Build Server for Migrations
-      run: dotnet build --configuration Release --no-restore
-      working-directory: ./Server
-      env:
-        ASPNETCORE_ENVIRONMENT: Production
-        ConnectionStrings__AzureSqlConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
-    
-    #- name: Run Database Migrations
-      #run: dotnet ef database update
-      #working-directory: ./Server
-      #env:
-       # ASPNETCORE_ENVIRONMENT: Production
-        #ConnectionStrings__AzureSqlConnection: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
-    
-    - name: Remove Runner IP from SQL Firewall
-      if: always()
-      run: |
-        az sql server firewall-rule delete \
-          --resource-group WeSellSeals-Production-RG \
-          --server wesellseals-sql-server \
-          --name "GitHubActions-${{ github.run_id }}" || true
-    
-    # Build and Deploy Frontend
-    - name: Install Frontend Dependencies
-      run: npm ci
-      working-directory: ./Client
-    
-    - name: Build Frontend
-      run: npm run build
-      working-directory: ./Client
-      env:
-        VITE_API_URL: ${{ secrets.AZURE_API_URL }}
-        VITE_STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
-        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-        VITE_CLERK_PUBLISHABLE_KEY_PROD: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY_PROD }}
-
-    
-    - name: Copy static web app config
-      run: cp ./Client/public/staticwebapp.config.json ./Client/build/client/
-    
-    - name: Deploy Frontend to Azure Static Web Apps
-      uses: Azure/static-web-apps-deploy@v1
-      timeout-minutes: 10
-      with:
-        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        action: "upload"
-        app_location: "Client/build/client"
-        output_location: ""
-        skip_app_build: true
-        skip_api_build: true
-    
-    - name: Logout from Azure
-      run: az logout
-      if: always()
-
   # Test Summary
   test-summary:
     name: Test Summary
@@ -311,6 +165,80 @@ jobs:
         echo "✅ Build Verification: Completed" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "View detailed results in the job artifacts above." >> $GITHUB_STEP_SUMMARY
+
+  # Deploy to Azure (only on main branch)
+  deploy-backend:
+    name: Deploy Backend API
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, build-check]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        run: dotnet restore
+        working-directory: ./Server
+      
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+        working-directory: ./Server
+      
+      - name: Publish
+        run: dotnet publish -c Release -o ./publish
+        working-directory: ./Server
+      
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./Server/publish
+
+  deploy-frontend:
+    name: Deploy Frontend (Static Web App)
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, build-check, deploy-backend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ./Client/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./Client
+      
+      - name: Build
+        run: npm run build
+        working-directory: ./Client
+        env:
+          VITE_API_URL: ${{ secrets.AZURE_API_URL }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+      
+      - name: Deploy to Azure Static Web App
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "Client"
+          output_location: "dist"
+          skip_app_build: true
 
   # Optional: Auto-merge dependabot PRs if tests pass
   # dependabot-auto-merge:

@@ -1,30 +1,26 @@
 #!/bin/bash
 
-# Azure Setup Script for WeSellSeals
-# This script creates all Azure resources needed for production deployment
+# Azure FREE Setup Script for WeSellSeals
+# This script creates all Azure resources using FREE tiers only
 
 set +e  # Don't exit on error, we'll handle them
 
-echo "🚀 Starting Azure resource creation for WeSellSeals..."
+echo "🚀 Starting FREE Azure resource creation for WeSellSeals..."
+echo ""
+echo "💰 This setup uses ONLY free Azure tiers:"
+echo "   • Azure Static Web Apps (Free)"
+echo "   • Azure App Service (F1 Free)"
+echo "   • Azure Blob Storage (5GB free + ~$0.02/GB after)"
+echo "   • PostgreSQL database (Supabase free tier - 500MB)"
 echo ""
 
 # Configuration variables
-RESOURCE_GROUP="WeSellSeals-Production-RG"
+RESOURCE_GROUP="WeSellSeals-Free-RG"
 LOCATION="westus2"
-SQL_SERVER_NAME="wesellseals-sql-server"
-DATABASE_NAME="WeSellSealsDB"
-SQL_ADMIN_USER="sqladmin"
-WEBAPP_NAME="wesellseals-api"
-STATIC_WEB_APP_NAME="wesellseals-client"
-APP_SERVICE_PLAN="WeSellSeals-Plan"
-USING_CONTAINER_APPS=false
-
-# Prompt for SQL password
-echo "⚠️  You'll need to provide a secure password for the SQL Server admin account."
-echo "Password requirements: At least 8 characters with uppercase, lowercase, numbers, and special characters"
-read -sp "Enter SQL Server admin password: " SQL_ADMIN_PASSWORD
-echo ""
-echo ""
+WEBAPP_NAME="wesellseals-api-free"
+STATIC_WEB_APP_NAME="wesellseals-client-free"
+APP_SERVICE_PLAN="WeSellSeals-Free-Plan"
+STORAGE_ACCOUNT="wesellsealsstorage"  # Must be lowercase, no hyphens
 
 # Step 1: Login to Azure
 echo "📝 Step 1: Logging into Azure..."
@@ -32,7 +28,7 @@ az login
 echo "✅ Logged in successfully"
 echo ""
 
-# Step 2: Create Resource Group (skip if exists)
+# Step 2: Create Resource Group
 echo "📝 Step 2: Checking/Creating resource group '$RESOURCE_GROUP'..."
 if az group show --name $RESOURCE_GROUP &>/dev/null; then
   echo "✅ Resource group already exists"
@@ -45,103 +41,67 @@ else
 fi
 echo ""
 
-# Step 3: Create SQL Server (skip if exists)
-echo "📝 Step 3: Checking/Creating SQL Server '$SQL_SERVER_NAME'..."
-if az sql server show --name $SQL_SERVER_NAME --resource-group $RESOURCE_GROUP &>/dev/null; then
-  echo "✅ SQL Server already exists"
+# Step 3: Create Storage Account for Blob Storage and SQLite backup
+echo "📝 Step 3: Creating Storage Account '$STORAGE_ACCOUNT'..."
+if az storage account show --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP &>/dev/null; then
+  echo "✅ Storage account already exists"
 else
-  az sql server create \
-    --name $SQL_SERVER_NAME \
+  az storage account create \
+    --name $STORAGE_ACCOUNT \
     --resource-group $RESOURCE_GROUP \
     --location $LOCATION \
-    --admin-user $SQL_ADMIN_USER \
-    --admin-password "$SQL_ADMIN_PASSWORD" \
+    --sku Standard_LRS \
+    --kind StorageV2 \
+    --access-tier Hot \
+    --allow-blob-public-access true \
     --output table
-  echo "✅ SQL Server created"
+  echo "✅ Storage account created"
 fi
 echo ""
 
-# Step 4: Configure SQL Server Firewall Rules
-echo "📝 Step 4: Configuring firewall rules..."
-
-# Allow Azure services
-az sql server firewall-rule create \
+# Step 4: Get Storage Account Connection String
+echo "📝 Step 4: Getting storage connection string..."
+STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+  --name $STORAGE_ACCOUNT \
   --resource-group $RESOURCE_GROUP \
-  --server $SQL_SERVER_NAME \
-  --name AllowAzureServices \
-  --start-ip-address 0.0.0.0 \
-  --end-ip-address 0.0.0.0 \
-  --output table 2>/dev/null || echo "  (Rule already exists)"
-
-# Get current IP and allow it
-MY_IP=$(curl -s https://api.ipify.org)
-echo "Your IP address: $MY_IP"
-az sql server firewall-rule create \
-  --resource-group $RESOURCE_GROUP \
-  --server $SQL_SERVER_NAME \
-  --name AllowMyIP \
-  --start-ip-address $MY_IP \
-  --end-ip-address $MY_IP \
-  --output table 2>/dev/null || echo "  (Rule already exists)"
-echo "✅ Firewall rules configured"
+  --output tsv)
+echo "✅ Connection string retrieved"
 echo ""
 
-# Step 5: Create SQL Database (skip if exists)
-echo "📝 Step 5: Checking/Creating database '$DATABASE_NAME'..."
-if az sql db show --name $DATABASE_NAME --resource-group $RESOURCE_GROUP --server $SQL_SERVER_NAME &>/dev/null; then
-  echo "✅ Database already exists"
+# Step 5: Create Blob Containers
+echo "📝 Step 5: Creating blob containers..."
+
+# Container for uploaded 3D models
+az storage container create \
+  --name sealmodels \
+  --account-name $STORAGE_ACCOUNT \
+  --public-access blob \
+  --output table 2>/dev/null || echo "  (sealmodels container already exists)"
+
+echo "✅ Blob containers created"
+echo ""
+
+# Step 6: Create FREE App Service Plan (F1 tier)
+echo "📝 Step 6: Creating FREE App Service Plan '$APP_SERVICE_PLAN'..."
+if az appservice plan show --name $APP_SERVICE_PLAN --resource-group $RESOURCE_GROUP &>/dev/null; then
+  echo "✅ App Service Plan already exists"
 else
-  az sql db create \
+  az appservice plan create \
+    --name $APP_SERVICE_PLAN \
     --resource-group $RESOURCE_GROUP \
-    --server $SQL_SERVER_NAME \
-    --name $DATABASE_NAME \
-    --service-objective Basic \
-    --backup-storage-redundancy Local \
+    --sku F1 \
+    --is-linux \
     --output table
-  echo "✅ Database created"
+  echo "✅ FREE App Service Plan created (F1 tier)"
+  echo "   ⚠️  Limitations: 60 CPU minutes/day, 1GB RAM, no custom domain SSL"
 fi
 echo ""
 
-# Step 6: Create App Service Plan with fallback to Container Apps
-echo "📝 Step 6: Creating App Service Plan '$APP_SERVICE_PLAN'..."
-if az appservice plan create \
-  --name $APP_SERVICE_PLAN \
-  --resource-group $RESOURCE_GROUP \
-  --sku B1 \
-  --is-linux \
-  --output table 2>/dev/null; then
-  echo "✅ App Service Plan created"
+# Step 7: Create Web App for .NET API
+echo "📝 Step 7: Creating Web App '$WEBAPP_NAME'..."
+if az webapp show --name $WEBAPP_NAME --resource-group $RESOURCE_GROUP &>/dev/null; then
+  echo "✅ Web App already exists"
 else
-  echo "⚠️  App Service quota exceeded. Using Azure Container Apps instead..."
-  USING_CONTAINER_APPS=true
-  
-  # Create Container Apps Environment
-  echo "📝 Creating Container Apps Environment..."
-  az containerapp env create \
-    --name wesellseals-env \
-    --resource-group $RESOURCE_GROUP \
-    --location $LOCATION \
-    --output table
-  
-  # Create Container App for API
-  echo "📝 Creating Container App for API..."
-  az containerapp create \
-    --name $WEBAPP_NAME \
-    --resource-group $RESOURCE_GROUP \
-    --environment wesellseals-env \
-    --image mcr.microsoft.com/dotnet/samples:aspnetapp \
-    --target-port 8080 \
-    --ingress external \
-    --output table
-  
-  echo "✅ Container App created"
-  WEBAPP_URL=$(az containerapp show --name $WEBAPP_NAME --resource-group $RESOURCE_GROUP --query properties.configuration.ingress.fqdn -o tsv)
-fi
-echo ""
-
-if [[ $USING_CONTAINER_APPS != true ]]; then
-  # Step 7: Create Web App for .NET API
-  echo "📝 Step 7: Creating Web App '$WEBAPP_NAME'..."
   az webapp create \
     --name $WEBAPP_NAME \
     --resource-group $RESOURCE_GROUP \
@@ -149,44 +109,50 @@ if [[ $USING_CONTAINER_APPS != true ]]; then
     --runtime "DOTNET:8.0" \
     --output table
   echo "✅ Web App created"
-  WEBAPP_URL="${WEBAPP_NAME}.azurewebsites.net"
-  echo ""
 fi
+WEBAPP_URL="${WEBAPP_NAME}.azurewebsites.net"
+echo ""
 
-# Step 8: Create Static Web App for React Client
-echo "📝 Step 8: Creating Static Web App '$STATIC_WEB_APP_NAME'..."
-az staticwebapp create \
-  --name $STATIC_WEB_APP_NAME \
+# Step 8: Configure Web App Settings
+echo "📝 Step 8: Configuring Web App environment variables..."
+
+az webapp config appsettings set \
   --resource-group $RESOURCE_GROUP \
-  --location $LOCATION \
-  --output table 2>/dev/null || echo "✅ Static Web App already exists"
-echo "✅ Static Web App ready"
+  --name $WEBAPP_NAME \
+  --settings \
+    "FileStorage__AzureBlobConnectionString=$STORAGE_CONNECTION_STRING" \
+    "FileStorage__ContainerName=sealmodels" \
+    "FileStorage__BaseUrl=https://${STORAGE_ACCOUNT}.blob.core.windows.net/sealmodels" \
+    "ASPNETCORE_ENVIRONMENT=Production" \
+  --output table
+
+echo "✅ Web App configured (PostgreSQL connection string must be set separately)"
 echo ""
 
-# Step 9: Get connection string
-echo "📝 Step 9: Getting connection string..."
-CONNECTION_STRING="Server=tcp:${SQL_SERVER_NAME}.database.windows.net,1433;Initial Catalog=${DATABASE_NAME};User ID=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-echo "✅ Connection string generated"
+# Step 9: Enable Always On (not available in F1, but try anyway)
+echo "📝 Step 9: Configuring Web App settings..."
+az webapp config set \
+  --resource-group $RESOURCE_GROUP \
+  --name $WEBAPP_NAME \
+  --always-on false \
+  --http20-enabled true \
+  --output table 2>/dev/null || echo "  ⚠️  Always On not available in F1 tier (this is expected)"
 echo ""
 
-# Step 10: Configure connection string
-if [[ $USING_CONTAINER_APPS == true ]]; then
-  echo "📝 Step 10: Configuring Container App environment variables..."
-  az containerapp update \
-    --name $WEBAPP_NAME \
-    --resource-group $RESOURCE_GROUP \
-    --set-env-vars "ConnectionStrings__AzureSqlConnection=$CONNECTION_STRING" \
-    --output table
+# Step 10: Create FREE Static Web App for React Client
+echo "📝 Step 10: Creating FREE Static Web App '$STATIC_WEB_APP_NAME'..."
+if az staticwebapp show --name $STATIC_WEB_APP_NAME --resource-group $RESOURCE_GROUP &>/dev/null; then
+  echo "✅ Static Web App already exists"
 else
-  echo "📝 Step 10: Configuring Web App connection string..."
-  az webapp config connection-string set \
+  az staticwebapp create \
+    --name $STATIC_WEB_APP_NAME \
     --resource-group $RESOURCE_GROUP \
-    --name $WEBAPP_NAME \
-    --connection-string-type SQLAzure \
-    --settings AzureSqlConnection="$CONNECTION_STRING" \
+    --location $LOCATION \
+    --sku Free \
     --output table
+  echo "✅ FREE Static Web App created"
 fi
-echo "✅ Connection string configured"
+STATIC_APP_URL="${STATIC_WEB_APP_NAME}.azurestaticapps.net"
 echo ""
 
 # Step 11: Get Static Web App deployment token
@@ -199,56 +165,67 @@ STATIC_WEB_APP_TOKEN=$(az staticwebapp secrets list \
 echo "✅ Deployment token retrieved"
 echo ""
 
+# Step 12: Get Storage Account Key
+STORAGE_KEY=$(az storage account keys list \
+  --resource-group $RESOURCE_GROUP \
+  --account-name $STORAGE_ACCOUNT \
+  --query "[0].value" \
+  --output tsv)
+
 # Summary
 echo "════════════════════════════════════════════════════════════════"
-echo "🎉 Azure resources created successfully!"
+echo "🎉 FREE Azure resources created successfully!"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 echo "📋 Resource Summary:"
 echo "  • Resource Group: $RESOURCE_GROUP"
-echo "  • SQL Server: ${SQL_SERVER_NAME}.database.windows.net"
-echo "  • Database: $DATABASE_NAME"
-if [[ $USING_CONTAINER_APPS == true ]]; then
-  echo "  • Container App (API): https://${WEBAPP_URL}"
-else
-  echo "  • Web App (API): https://${WEBAPP_URL}"
-fi
-echo "  • Static Web App: https://${STATIC_WEB_APP_NAME}.azurestaticapps.net"
+echo "  • Web App (API): https://${WEBAPP_URL}"
+echo "  • Static Web App: https://${STATIC_APP_URL}"
+echo "  • Storage Account: $STORAGE_ACCOUNT"
+echo "  • Database: Supabase PostgreSQL (configure separately)"
+echo ""
+echo "💰 TOTAL COST: \$0/month (completely FREE!)"
+echo ""
+echo "⚠️  FREE Tier Limitations:"
+echo "  • App Service F1: 60 CPU minutes/day max"
+echo "  • App Service: Goes to sleep after 20 min inactivity"
+echo "  • Static Web App: 100GB bandwidth/month"
+echo "  • Storage: First 5GB free, then ~\$0.02/GB/month"
 echo ""
 echo "🔐 GitHub Secrets to Add:"
-echo "  1. AZURE_SQL_CONNECTION_STRING"
-echo "     Value: $CONNECTION_STRING"
 echo ""
-echo "  2. AZURE_WEBAPP_NAME"
+echo "  1. AZURE_WEBAPP_NAME"
 echo "     Value: $WEBAPP_NAME"
 echo ""
-echo "  3. AZURE_API_URL"
+echo "  2. AZURE_API_URL"
 echo "     Value: https://${WEBAPP_URL}"
 echo ""
-echo "  4. AZURE_STATIC_WEB_APPS_API_TOKEN"
+echo "  3. AZURE_STATIC_WEB_APPS_API_TOKEN"
 echo "     Value: $STATIC_WEB_APP_TOKEN"
 echo ""
-echo "  5. AZURE_CREDENTIALS (create service principal)"
+echo "  4. AZURE_STORAGE_CONNECTION_STRING"
+echo "     Value: $STORAGE_CONNECTION_STRING"
+echo ""
+echo "  5. AZURE_STORAGE_ACCOUNT_NAME"
+echo "     Value: $STORAGE_ACCOUNT"
+echo ""
+echo "  6. AZURE_STORAGE_ACCOUNT_KEY"
+echo "     Value: $STORAGE_KEY"
+echo ""
+echo "  7. AZURE_CREDENTIALS (create service principal)"
 echo "     Run: az ad sp create-for-rbac --name \"WeSellSeals-GitHub-Actions\" --role contributor --scopes /subscriptions/\$(az account show --query id -o tsv)/resourceGroups/$RESOURCE_GROUP --sdk-auth"
 echo ""
 echo "📝 Next Steps:"
-echo "  1. Add the GitHub secrets listed above"
-echo "  2. Update Server/appsettings.Production.json with real values"
-echo "  3. Run database migrations: dotnet ef database update --connection \"\$CONNECTION_STRING\""
-echo "  4. Push to main branch to trigger deployment"
+echo "  1. Set up FREE Supabase PostgreSQL database (see SUPABASE_SETUP.md)"
+echo "  2. Add the GitHub secrets listed above to your repository"
+echo "  3. Add PostgreSQL connection string to Azure Web App settings"
+echo "  4. Add Stripe and Clerk secrets to GitHub and Azure Web App"
+echo "  5. Push to main branch to trigger deployment"
+echo "  6. Run database migrations after first deployment"
 echo ""
-if [[ $USING_CONTAINER_APPS == true ]]; then
-  echo "💰 Cost Estimate:"
-  echo "  • SQL Database (Basic): ~\$5/month"
-  echo "  • Container Apps: ~\$10/month (with free tier allowance)"
-  echo "  • Static Web App: Free tier"
-  echo "  Total: ~\$15/month"
-else
-  echo "💰 Cost Estimate:"
-  echo "  • SQL Database (Basic): ~\$5/month"
-  echo "  • App Service (B1): ~\$13/month"
-  echo "  • Static Web App: Free tier"
-  echo "  Total: ~\$18/month"
-fi
+echo "🔗 Useful Commands:"
+echo "  • View Web App logs: az webapp log tail --name $WEBAPP_NAME --resource-group $RESOURCE_GROUP"
+echo "  • Restart Web App: az webapp restart --name $WEBAPP_NAME --resource-group $RESOURCE_GROUP"
+echo "  • SSH into Web App: az webapp ssh --name $WEBAPP_NAME --resource-group $RESOURCE_GROUP"
 echo ""
 echo "════════════════════════════════════════════════════════════════"

@@ -1,4 +1,5 @@
 import { apiClient } from "~/lib/apiClient";
+import type { Comment } from "../components/CommentsSection";
 
 export type ProductCategory = 
   | "seals"
@@ -9,6 +10,8 @@ export type ProductCategory =
   | "architecture"
   | "animals"
   | "characters";
+
+
 
 export type Product = {
   id: string;
@@ -23,6 +26,7 @@ export type Product = {
   tags: string | string[]; // API returns JSON string, we'll parse it
   createdAt?: string;
   updatedAt?: string;
+  comments?: Comment[];
 };
 
 // Convert API product to frontend product (parse tags if needed)
@@ -117,6 +121,7 @@ export async function deleteProduct(id: string, token: string): Promise<void> {
     throw new Error('Failed to delete product');
   }
 }
+
 
 // Helper function to search/filter products (can be used on fetched products)
 export function searchProducts(products: Product[], query: string, category?: ProductCategory): Product[] {

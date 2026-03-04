@@ -4,6 +4,7 @@ import { useCart } from "../../context/CartContext";
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { API_URL } from "../../lib/apiClient";
+import CommentsSection from "../../components/CommentsSection";
 
 export function meta({ params }: Route.MetaArgs) {
   return [
@@ -22,6 +23,7 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
   const [autoRotate, setAutoRotate] = useState(true);
   const [isOwned, setIsOwned] = useState(false);
   const [checkingOwnership, setCheckingOwnership] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Fetch product
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
     };
     
     fetchProduct();
-  }, [params.id]);
+  }, [params.id, refreshKey]);
 
   useEffect(() => {
     const checkOwnership = async () => {
@@ -309,6 +311,16 @@ export default function ProductDetail({ params }: Route.ComponentProps) {
             </ul>
           </div>
         </div>
+      </div>
+      <div className="mt-12 border-t border-gray-200 dark:border-gray-700 pt-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+          Comments
+        </h1>
+        <CommentsSection
+          productId={product.id}
+          comments={product.comments || []}
+          onCommentsChange={() => setRefreshKey(prev => prev + 1)}
+        />
       </div>
     </div>
   );
