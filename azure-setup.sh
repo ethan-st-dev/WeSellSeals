@@ -11,7 +11,7 @@ echo "💰 This setup uses ONLY free Azure tiers:"
 echo "   • Azure Static Web Apps (Free)"
 echo "   • Azure App Service (F1 Free)"
 echo "   • Azure Blob Storage (5GB free + ~$0.02/GB after)"
-echo "   • SQLite database (stored in blob storage)"
+echo "   • PostgreSQL database (Supabase free tier - 500MB)"
 echo ""
 
 # Configuration variables
@@ -78,13 +78,6 @@ az storage container create \
   --public-access blob \
   --output table 2>/dev/null || echo "  (sealmodels container already exists)"
 
-# Container for SQLite database backups (private)
-az storage container create \
-  --name database \
-  --account-name $STORAGE_ACCOUNT \
-  --public-access off \
-  --output table 2>/dev/null || echo "  (database container already exists)"
-
 echo "✅ Blob containers created"
 echo ""
 
@@ -127,14 +120,13 @@ az webapp config appsettings set \
   --resource-group $RESOURCE_GROUP \
   --name $WEBAPP_NAME \
   --settings \
-    "ConnectionStrings__DefaultConnection=Data Source=/home/site/wwwroot/app.db" \
     "FileStorage__AzureBlobConnectionString=$STORAGE_CONNECTION_STRING" \
     "FileStorage__ContainerName=sealmodels" \
     "FileStorage__BaseUrl=https://${STORAGE_ACCOUNT}.blob.core.windows.net/sealmodels" \
     "ASPNETCORE_ENVIRONMENT=Production" \
   --output table
 
-echo "✅ Web App configured to use SQLite and Azure Blob Storage"
+echo "✅ Web App configured (PostgreSQL connection string must be set separately)"
 echo ""
 
 # Step 9: Enable Always On (not available in F1, but try anyway)
@@ -190,7 +182,7 @@ echo "  • Resource Group: $RESOURCE_GROUP"
 echo "  • Web App (API): https://${WEBAPP_URL}"
 echo "  • Static Web App: https://${STATIC_APP_URL}"
 echo "  • Storage Account: $STORAGE_ACCOUNT"
-echo "  • Database: SQLite (stored locally in App Service)"
+echo "  • Database: Supabase PostgreSQL (configure separately)"
 echo ""
 echo "💰 TOTAL COST: \$0/month (completely FREE!)"
 echo ""
@@ -224,11 +216,12 @@ echo "  7. AZURE_CREDENTIALS (create service principal)"
 echo "     Run: az ad sp create-for-rbac --name \"WeSellSeals-GitHub-Actions\" --role contributor --scopes /subscriptions/\$(az account show --query id -o tsv)/resourceGroups/$RESOURCE_GROUP --sdk-auth"
 echo ""
 echo "📝 Next Steps:"
-echo "  1. Update Server/Program.cs to use SQLite in production (see FREE_DEPLOYMENT_GUIDE.md)"
+echo "  1. Set up FREE Supabase PostgreSQL database (see SUPABASE_SETUP.md)"
 echo "  2. Add the GitHub secrets listed above to your repository"
-echo "  3. Add Stripe and Clerk secrets to GitHub and Azure Web App"
-echo "  4. Push to main branch to trigger deployment"
-echo "  5. Run database migrations after first deployment"
+echo "  3. Add PostgreSQL connection string to Azure Web App settings"
+echo "  4. Add Stripe and Clerk secrets to GitHub and Azure Web App"
+echo "  5. Push to main branch to trigger deployment"
+echo "  6. Run database migrations after first deployment"
 echo ""
 echo "🔗 Useful Commands:"
 echo "  • View Web App logs: az webapp log tail --name $WEBAPP_NAME --resource-group $RESOURCE_GROUP"

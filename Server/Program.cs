@@ -30,35 +30,16 @@ if (builder.Environment.EnvironmentName == "Testing")
 }
 else if (builder.Environment.IsProduction())
 {
-    // Production: Use Azure SQL Database OR SQLite (for free tier)
-    var azureSqlConnection = builder.Configuration.GetConnectionString("AzureSqlConnection");
-    var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+    // Production: Use PostgreSQL (Supabase free tier)
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     
-    if (!string.IsNullOrEmpty(azureSqlConnection))
+    if (string.IsNullOrEmpty(connectionString))
     {
-        // Use Azure SQL Database (paid tier)
-        builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(azureSqlConnection));
+        throw new InvalidOperationException("No database connection string found. Set 'DefaultConnection' in configuration.");
     }
-    else if (!string.IsNullOrEmpty(defaultConnection))
-    {
-        // Use SQLite (free tier) - check if it's a SQLite connection string
-        if (defaultConnection.Contains("Data Source=", StringComparison.OrdinalIgnoreCase))
-        {
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlite(defaultConnection));
-        }
-        else
-        {
-            // Fallback to SQL Server
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(defaultConnection));
-        }
-    }
-    else
-    {
-        throw new InvalidOperationException("No database connection string found. Set either 'AzureSqlConnection' or 'DefaultConnection'.");
-    }
+    
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseNpgsql(connectionString));
 }
 else
 {
@@ -147,10 +128,7 @@ else
     builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
 }
 
-// Configure SQLite Blob Sync for persistent storage (FREE)
-builder.Services.AddSingleton<ISqliteBlobSyncService, SqliteBlobSyncService>();
-builder.Services.AddHostedService<DatabaseInitializationService>();
-builder.Services.AddHostedService<DatabaseBackupService>();
+// Note: SQLite blob sync services removed - using PostgreSQL for production
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
