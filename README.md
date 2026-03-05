@@ -1,6 +1,6 @@
 _Live deployment currently paused to optimize cloud costs while developing SealTank. Please see the High-Definition Video Demo below for a full walkthrough._
 # WeSellSeals
- Text Based Interactive RPG Web App showcasing the capabilities of the OPENAI API.
+E-commerce app selling 3D model digital assets
  
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white&labelColor=gray)
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white&labelColor=gray)
@@ -8,12 +8,16 @@ _Live deployment currently paused to optimize cloud costs while developing SealT
 ![.NET Core](https://img.shields.io/badge/.NET%20Core-512BD4?logo=dotnet&logoColor=white&labelColor=gray)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white&labelColor=gray)
 ![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=white&labelColor=gray)
- 
+
+
+## Demo: Admin - Uploading and Managing Content 
 <p align="center">
   <a href="https://www.youtube.com/embed/KHvLWjJLlnU">
     <img src="https://img.youtube.com/vi/KHvLWjJLlnU/0.jpg" alt="Alt Text" width="100%">
   </a>
 </p>
+
+## Demo: User - Login, Buying and Downloading Content
 
 ## About The Project
 WeSellSeals was developed as a dedicated marketplace and distribution platform for specialized 3D assets—specifically custom GLB models of seals. While the front-end provides a seamless browsing experience, the project served as a deep dive into the architecture required for high-fidelity asset management and secure e-commerce workflows.
