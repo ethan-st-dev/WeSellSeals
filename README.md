@@ -1,6 +1,6 @@
 _Live deployment currently paused to optimize cloud costs while developing SealTank. Please see the High-Definition Video Demo below for a full walkthrough._
 # WeSellSeals
-E-commerce app selling 3D model digital assets
+A Full-Stack E-commerce Marketplace for 3D Assets, featuring secure payment processing and real-time 3D previews.
  
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white&labelColor=gray)
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white&labelColor=gray)
