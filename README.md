@@ -30,6 +30,8 @@ WeSellSeals was developed as a dedicated marketplace and distribution platform f
 Built with React.js and Typescript (ES6+), utilizing functional components to manage the application's UI and logic.
 #### Back-end
 Utilizes an ASP.NET Core backend and Entity Framework Core to provide a high-performance, type-safe API for managing 3D asset metadata and secure transactions through Azure App Services.
+#### Cloud
+Deployed on Microsoft Azure cloud architecture, utilizing app service for front-end hosting, container apps for back-end hosting, Azure SQL for user data management, and Blob Storage for object storage of 3D GLB assets.
 #### Libraries, API's & Tools
 WeSellSeals leverages Clerk for seamless user authentication, Stripe to facilitate secure marketplace transactions, and Three.js to provide interactive, high-performance 3D previews of the seal models directly in the browser.
 #
