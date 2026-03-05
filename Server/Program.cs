@@ -30,7 +30,7 @@ if (builder.Environment.EnvironmentName == "Testing")
 }
 else if (builder.Environment.IsProduction())
 {
-    // Production: Use PostgreSQL (Supabase free tier)
+    // Production: Use Azure SQL Database
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     
     if (string.IsNullOrEmpty(connectionString))
@@ -39,7 +39,7 @@ else if (builder.Environment.IsProduction())
     }
     
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseNpgsql(connectionString));
+        options.UseSqlServer(connectionString));
 }
 else
 {
