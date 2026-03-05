@@ -16,8 +16,11 @@ _Live deployment currently paused to optimize cloud costs while developing SealT
 </p>
 
 ## About The Project
-Questhub was created as an exploration into virtualizing the narrative role of a Dungeon Master from the tabletop role-playing game Dungeons & Dragons. By leveraging the OpenAI API as a foundation, the project became an opportunity to push the boundaries of large language models while layering in custom backend logic to guide structure, continuity, and player agency. Beyond being a storytelling platform, Questhub served as a hands-on engineering exercise in prompt design, state management, and building controlled AI-driven systems.
-
+WeSellSeals was developed as a dedicated marketplace and distribution platform for specialized 3D assets—specifically custom GLB models of seals. While the front-end provides a seamless browsing experience, the project served as a deep dive into the architecture required for high-fidelity asset management and secure e-commerce workflows.
+- Secure Infrastructure: Leveraging Azure for cloud hosting and scalable Object Storage to handle the delivery of high-polygon 3D files.
+- Identity Management: Implementing robust user authentication to manage creator permissions and buyer access.
+- Asset Pipeline: Managing the lifecycle of GLB files, from metadata extraction to secure retrieval, ensuring data integrity across the stack.
+- Full-Stack Integration: Bridging a modern React/TypeScript frontend with a powerful .NET backend to create a cohesive, responsive environment for digital collectors.
 ### Tech Stack
 #### Front-end
 Built with React.js and JavaScript (ES6+), utilizing functional components to manage the application's UI and logic.
