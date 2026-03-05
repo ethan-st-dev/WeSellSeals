@@ -10,14 +10,14 @@ A Full-Stack E-commerce Marketplace for 3D Assets, featuring secure payment proc
 ![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=white&labelColor=gray)
 
 
-## Demo: Admin - Uploading and Managing Content 
+## _Demo: Admin_ - Uploading and Managing Content 
 <p align="center">
   <a href="https://www.youtube.com/embed/KHvLWjJLlnU">
     <img src="https://img.youtube.com/vi/KHvLWjJLlnU/0.jpg" alt="Alt Text" width="100%">
   </a>
 </p>
 
-## Demo: User - Login, Buying and Downloading Content
+##_ Demo: User_ - Login, Buying and Downloading Content
 
 ## About The Project
 WeSellSeals was developed as a dedicated marketplace and distribution platform for specialized 3D assets—specifically custom GLB models of seals. While the front-end provides a seamless browsing experience, the project served as a deep dive into the architecture required for high-fidelity asset management and secure e-commerce workflows.
