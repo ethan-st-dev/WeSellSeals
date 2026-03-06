@@ -1,4 +1,4 @@
-_Live deployment currently paused to optimize cloud costs while developing [SealTank](https://github.com/ethan-st-dev/SealTank). Please see the Video Demos below for a full walkthrough._
+⏸️ _Live deployment currently paused to optimize cloud costs while developing [SealTank](https://github.com/ethan-st-dev/SealTank). Please see the Video Demos below for a full walkthrough._ ⏸️
 # WeSellSeals
 A Full-Stack E-commerce Marketplace for 3D Assets, featuring secure payment processing and real-time 3D previews.
  
