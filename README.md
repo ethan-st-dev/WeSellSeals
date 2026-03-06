@@ -12,8 +12,8 @@ A Full-Stack E-commerce Marketplace for 3D Assets, featuring secure payment proc
 
 ## _Demo: Admin_ - Uploading and Managing Content 
 <p align="center">
-  <a href="https://www.youtube.com/embed/KHvLWjJLlnU">
-    <img src="https://img.youtube.com/vi/KHvLWjJLlnU/0.jpg" alt="Alt Text" width="100%">
+  <a href="https://www.youtube.com/embed/qN2hFdPZDcw">
+    <img src="https://img.youtube.com/vi/qN2hFdPZDcw/0.jpg" alt="Alt Text" width="100%">
   </a>
 </p>
 
